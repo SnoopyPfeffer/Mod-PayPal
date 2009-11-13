@@ -34,12 +34,15 @@ namespace DeepThink.PayPal
     {
         internal enum InternalTransactionType
         {
-            Payment, // User2User or User2Object "Pay" Option
-            Purchase // User2Object "Buy" Option
+            Payment,  // User2User or User2Object "Pay" Option
+            Purchase, // User2Object "Buy" Option
+            Land      // User2Land "Buy" Option
         }
 
         public readonly UUID From;
         public readonly UUID To;
+        
+        public readonly EventManager.LandBuyArgs E;
 
         /// <summary>
         /// Email address of seller's account.
@@ -76,6 +79,28 @@ namespace DeepThink.PayPal
             SellersEmail = sellersEmail;
             To = to;
             ObjectID = UUID.Zero;
+
+            // Generate a 128-bit Unique ID
+            // Using the Crypto Random Generator (increased unguessability)
+            byte[] randomBuf = new byte[16];
+            RNGCryptoServiceProvider random = new RNGCryptoServiceProvider();
+            random.GetBytes(randomBuf);
+            Guid txID = new Guid(randomBuf);
+
+            TxID = new UUID(txID);
+        }
+        
+        public PayPalTransaction(UUID from, UUID to, string sellersEmail, int amount, Scene scene, string description, InternalTransactionType internalType, EventManager.LandBuyArgs e)
+        {
+            From = from;
+            InternalType = internalType;
+            Description = description;
+            Scene = scene;
+            Amount = amount;
+            SellersEmail = sellersEmail;
+            To = to;
+            ObjectID = UUID.Zero;
+            E = e;
 
             // Generate a 128-bit Unique ID
             // Using the Crypto Random Generator (increased unguessability)

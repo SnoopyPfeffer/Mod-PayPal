@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) DeepThink Pty Ltd, http://www.deepthinklabs.com/
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,9 +35,11 @@ using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Framework.Communications;
+using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using OpenSim.Server.Base;
+using OpenSim.Region.CoreModules.World.Land;
 using Nwc.XmlRpc;
 
 using Mono.Addins; // I hate you Mono.Addins
@@ -66,6 +68,14 @@ namespace DeepThink.PayPal
         private readonly List<Scene> m_scenes = new List<Scene>();
 
         private readonly Dictionary<UUID,PayPalTransaction> m_transactionsInProgress = new Dictionary<UUID, PayPalTransaction>();
+
+        private bool m_allowGridEmails = false;
+        private bool m_allowGroups = false;
+
+        /// <summary>
+        /// Scenes by Region Handle
+        /// </summary>
+        private Dictionary<ulong, Scene> m_scenel = new Dictionary<ulong, Scene>();
 
         #region DTL Currency - PayPal 
 
@@ -103,7 +113,6 @@ namespace DeepThink.PayPal
                             m_log.Warn("[DTL PayPal] Multiple avatars with same UUID! Aborting transaction.");
                             return;
                         }
-
                         // Found the client,
                         // and their root scene.
                         user = avs[0].ControllingClient;
@@ -130,14 +139,48 @@ namespace DeepThink.PayPal
                     return;
                 }
 
-                txn = new PayPalTransaction(e.sender, sop.OwnerID, m_usersemail[sop.OwnerID], e.amount,
-                                            scene, e.receiver, e.description + "T:" + e.transactiontype, PayPalTransaction.InternalTransactionType.Payment);
+        	string email;
+        	
+        	if (sop.OwnerID == sop.GroupID)
+        	{
+        	    if (m_allowGroups)
+        	    {
+        		if (!GetEmail(sop.OwnerID, out email))
+        		{
+        		    m_log.Warn("[DTL PayPal] Unknown email address of group " + sop.OwnerID);
+        		    return;
+        		}
+        	    } else {
+        		m_log.Warn("[DTL PayPal] Payments to group owned objects is disabled.");
+        		return;
+        	    }
+        	} else {
+        	    if (!GetEmail(sop.OwnerID, out email))
+        	    {
+        		m_log.Warn("[DTL PayPal] Unknown email address of user " + sop.OwnerID);
+        		return;
+        	    }
+        	}
+
+        	m_log.Info("[DTL PayPal] Start: " + e.sender + " wants to pay object " + e.receiver + " owned by " + sop.OwnerID + " with email " + email + " US$ cents " + e.amount);
+        	
+                txn = new PayPalTransaction(e.sender, sop.OwnerID, email, e.amount,
+                                            scene, e.receiver, e.description + " T:" + e.transactiontype, PayPalTransaction.InternalTransactionType.Payment);
             }
             else
             {
                 // Payment to a user.
-                txn = new PayPalTransaction(e.sender, e.receiver, m_usersemail[e.receiver], e.amount,
-                                            scene, e.description + "T:" + e.transactiontype, PayPalTransaction.InternalTransactionType.Payment);
+        	string email;
+        	if (!GetEmail(e.receiver, out email))
+        	{
+        	    m_log.Warn("[DTL PayPal] Unknown email address of user " + e.receiver);
+        	    return;
+        	}
+        	
+        	m_log.Info("[DTL PayPal] Start: " + e.sender + " wants to pay user " + e.receiver + " with email " + email + " US$ cents " + e.amount);
+        	
+                txn = new PayPalTransaction(e.sender, e.receiver, email, e.amount,
+                                            scene, e.description + " T:" + e.transactiontype, PayPalTransaction.InternalTransactionType.Payment);
             }
 
             // Add transaction to queue
@@ -157,12 +200,25 @@ namespace DeepThink.PayPal
                 if (transaction.ObjectID == UUID.Zero)
                 {
                     // User 2 User Transaction
-                    // Probably should notify them somehow.
+        	    m_log.Info("[DTL PayPal] Success: " + transaction.From + " did pay user " + transaction.To + " US$ cents " + transaction.Amount);
+        	    
+        	    CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
+        	    UserProfileData upd;
+        	    
+                    // Notify receiver
+        	    upd = communicationsManager.UserService.GetUserProfile(transaction.From);
+        	    SendInstantMessage(transaction.To, upd.FirstName + " " + upd.SurName + " did pay you US$ cent " + transaction.Amount);
+        	    
+        	    // Notify sender
+        	    upd = communicationsManager.UserService.GetUserProfile(transaction.To);
+        	    SendInstantMessage(transaction.From, "You did pay " + upd.FirstName + " " + upd.SurName + " US$ cent " + transaction.Amount);
                 }
                 else
                 {
                     if (OnObjectPaid != null)
                     {
+        		m_log.Info("[DTL PayPal] Success: " + transaction.From + " did pay object " + transaction.ObjectID + " owned by " + transaction.To + " US$ cents " + transaction.Amount);
+        		
                         OnObjectPaid(transaction.ObjectID, transaction.From, transaction.Amount);
                     }
                 }
@@ -182,10 +238,36 @@ namespace DeepThink.PayPal
                         m_log.Error("[DTL PayPal] Unable to find Object bought! UUID = " + transaction.ObjectID);
                         return;
                     }
+        	    
+        	    m_log.Info("[DTL PayPal] Success: " + transaction.From + " did buy object " + transaction.ObjectID + " from " + transaction.To + " paying US$ cents " + transaction.Amount);
+        	    
                     s.PerformObjectBuy(s.SceneContents.GetControllingClient(transaction.From),
                                        transaction.InternalPurchaseFolderID, part.LocalId,
                                        transaction.InternalPurchaseType);
                 }
+            }
+            else if (transaction.InternalType == PayPalTransaction.InternalTransactionType.Land)
+            {
+        	// User 2 Land Transaction
+        	EventManager.LandBuyArgs e = transaction.E;
+        	
+        	lock (e)
+        	{
+        	    e.economyValidated = true;
+        	}
+        	
+        	Scene s = LocateSceneClientIn(transaction.From);
+                ILandObject land = s.LandChannel.GetLandObject((int)e.parcelLocalID);
+                
+        	if (land == null)
+                    {
+                        m_log.Error("[DTL PayPal] Unable to find Land bought! UUID = " + e.parcelLocalID);
+                        return;
+                    }
+        	
+        	m_log.Info("[DTL PayPal] Success: " + e.agentId + " did buy land from " + e.parcelOwnerID + " paying US$ cents " + e.parcelPrice);
+        	
+                land.UpdateLandSold(e.agentId, e.groupId, e.groupOwned, (uint)e.transactionID, e.parcelPrice, e.parcelArea);
             }
             else
             {
@@ -227,7 +309,7 @@ namespace DeepThink.PayPal
                          "&business=" + HttpUtility.UrlEncode(txn.SellersEmail) +
                          "&item_name=" + HttpUtility.UrlEncode(txn.Description) +
                          "&item_number=" + HttpUtility.UrlEncode(txn.TxID.ToString()) +
-                         "&amount=" + HttpUtility.UrlEncode(ConvertAmountToCurrency(txn.Amount).ToString()) +
+                         "&amount=" + HttpUtility.UrlEncode(String.Format("{0:0.00}", ConvertAmountToCurrency(txn.Amount))) +
                          "&page_style=" + HttpUtility.UrlEncode("Paypal") +
                          "&no_shipping=" + HttpUtility.UrlEncode("1") +
                          "&return=" + HttpUtility.UrlEncode("http://" + baseUrl + "/") + // TODO: Add in a return page
@@ -242,14 +324,12 @@ namespace DeepThink.PayPal
 
             Dictionary<string,string> replacements = new Dictionary<string, string>();
             replacements.Add("{ITEM}", txn.Description);
-            replacements.Add("{AMOUNT}", ConvertAmountToCurrency(txn.Amount).ToString());
+            replacements.Add("{AMOUNT}", String.Format("{0:0.00}", ConvertAmountToCurrency(txn.Amount)));
             replacements.Add("{AMOUNTOS}", txn.Amount.ToString());
             replacements.Add("{CURRENCYCODE}", "USD");
             replacements.Add("{BILLINGLINK}", url);
             replacements.Add("{OBJECTID}", txn.ObjectID.ToString());
             replacements.Add("{SELLEREMAIL}", txn.SellersEmail);
-
-            
 
             string template;
 
@@ -373,7 +453,7 @@ namespace DeepThink.PayPal
 
                 // Check user paid correctly...
                 Decimal amountPaid = Decimal.Parse(postvals["mc_gross"]);
-                if(ConvertAmountToCurrency(txn.Amount) != amountPaid)
+                if(System.Math.Abs(ConvertAmountToCurrency(txn.Amount) - amountPaid) > (Decimal)0.001)
                 {
                     m_log.Error("[DTL PayPal] Expected payment was " + ConvertAmountToCurrency(txn.Amount) +
                                 " but recieved " + amountPaid + " " + postvals["mc_currency"] + " instead. Aborting.");
@@ -387,7 +467,7 @@ namespace DeepThink.PayPal
             }
             catch (KeyNotFoundException)
             {
-                m_log.Error("[DTL PayPal] Recieved badly formatted IPN notice. Aborting.");
+                m_log.Error("[DTL PayPal] Received badly formatted IPN notice. Aborting.");
                 debugStringDict(postvals);
                 return reply;
             }
@@ -434,8 +514,38 @@ namespace DeepThink.PayPal
 
             if (m_enabled)
             {
+                IHttpServer httpServer = MainServer.Instance;
+        	
+                lock (m_scenel)
+                {
+                    if (m_scenel.Count == 0)
+                    {
+                        // XMLRPCHandler = scene;
+
+                        // To use the following you need to add:
+                        // -helperuri <ADDRESS TO HERE OR grid MONEY SERVER>
+                        // to the command line parameters you use to start up your client
+                        // This commonly looks like -helperuri http://127.0.0.1:9000/
+
+                        // Local Server..  enables functionality only.
+                        httpServer.AddXmlRPCHandler("preflightBuyLandPrep", preflightBuyLandPrep_func);
+                        httpServer.AddXmlRPCHandler("buyLandPrep", landBuy_func);   
+                    }
+
+                    if (m_scenel.ContainsKey(scene.RegionInfo.RegionHandle))
+                    {
+                        m_scenel[scene.RegionInfo.RegionHandle] = scene;
+                    }
+                    else
+                    {
+                        m_scenel.Add(scene.RegionInfo.RegionHandle, scene);
+                    }
+                }
+            
                 scene.EventManager.OnMoneyTransfer += EventManager_OnMoneyTransfer;
                 scene.EventManager.OnNewClient += EventManager_OnNewClient;
+        	scene.EventManager.OnValidateLandBuy += ValidateLandBuy;
+                scene.EventManager.OnLandBuy += processLandBuy;
             }
         }
 
@@ -502,15 +612,45 @@ namespace DeepThink.PayPal
                 return;
             }
 
+            if (salePrice == 0)
+            {
+        	scene.PerformObjectBuy(remoteClient, categoryID, localID, saleType);
+        	return;
+            }
+
             SceneObjectPart sop = scene.GetSceneObjectPart(localID);
             if (sop == null)
             {
                 m_log.Warn("[DTL PayPal] Unable to find SceneObjectPart that was paid. Aborting transaction.");
                 return;
             }
-
-            PayPalTransaction txn = new PayPalTransaction(agentID, sop.OwnerID, m_usersemail[sop.OwnerID], salePrice,
-                                                          scene, sop.UUID,
+            
+            string email;
+        	
+            if (sop.OwnerID == sop.GroupID)
+            {
+        	if (m_allowGroups)
+        	{
+        	    if (!GetEmail(sop.OwnerID, out email))
+        	    {
+        		m_log.Warn("[DTL PayPal] Unknown email address of group " + sop.OwnerID);
+        		return;
+        	    }
+        	} else {
+        	    m_log.Warn("[DTL PayPal] Purchase of group owned objects is disabled.");
+        	    return;
+        	}
+            } else {
+        	if (!GetEmail(sop.OwnerID, out email))
+        	{
+        	    m_log.Warn("[DTL PayPal] Unknown email address of user " + sop.OwnerID);
+        	    return;
+        	}
+            }
+            
+            m_log.Info("[DTL PayPal] Start: " + agentID + " wants to buy object " + sop.UUID + " from " + sop.OwnerID + " with email " + email + " costing US$ cents " + salePrice);
+            
+            PayPalTransaction txn = new PayPalTransaction(agentID, sop.OwnerID, email, salePrice, scene, sop.UUID,
                                                           "Item Purchase - " + sop.Name + " (" + saleType + ")",
                                                           PayPalTransaction.InternalTransactionType.Purchase, categoryID,
                                                           saleType);
@@ -545,7 +685,227 @@ namespace DeepThink.PayPal
             const int returnfunds = 1000000;
             client.SendMoneyBalance(TransactionID, true, new byte[0], returnfunds);
         }
+        
+        private void ValidateLandBuy(Object osender, EventManager.LandBuyArgs e)
+        {
+            // confirm purchase of land for free
+            if (e.parcelPrice == 0)
+            {
+        	lock (e)
+        	{
+        	    e.economyValidated = true;
+        	}
+            }
+        }
 
+        private void processLandBuy(Object osender, EventManager.LandBuyArgs e)
+        {
+            if(!m_active)
+                return;
+            
+            if (e.parcelPrice == 0)
+        	return;
+            
+            IClientAPI user = null;
+            Scene scene = null;
+
+            // Find the user's controlling client.
+            lock(m_scenes)
+            {
+                foreach (Scene sc in m_scenes)
+                {
+                    List<ScenePresence> avs =
+                        sc.GetAvatars().FindAll(
+                            x =>
+                            (x.UUID == e.agentId && x.IsChildAgent == false)
+                            );
+
+                    if(avs.Count > 0)
+                    {
+                        if(avs.Count > 1)
+                        {
+                            m_log.Warn("[DTL PayPal] Multiple avatars with same UUID! Aborting transaction.");
+                            return;
+                        }
+
+                        // Found the client,
+                        // and their root scene.
+                        user = avs[0].ControllingClient;
+                        scene = sc;
+                    }
+                }
+            }
+
+            if(scene == null || user == null)
+            {
+                m_log.Warn("[DTL PayPal] Unable to find scene or user! Aborting transaction.");
+                return;
+            }
+            
+            string email;
+            
+            if ((e.parcelOwnerID == e.groupId) || e.groupOwned)
+            {
+        	if (m_allowGroups)
+        	{
+        	    if (!GetEmail(e.parcelOwnerID, out email))
+        	    {
+        		m_log.Warn("[DTL PayPal] Unknown email address of group " + e.parcelOwnerID);
+        		return;
+        	    }
+        	} else {
+        	    m_log.Warn("[DTL PayPal] Purchases of group owned land is disabled.");
+        	    return;
+        	}
+            } else {
+        	if (!GetEmail(e.parcelOwnerID, out email))
+        	{
+        	    m_log.Warn("[DTL PayPal] Unknown email address of user " + e.parcelOwnerID);
+        	    return;
+        	}
+            }
+            
+            m_log.Info("[DTL PayPal] Start: " + e.agentId + " wants to buy land from " + e.parcelOwnerID + " with email " + email + " costing US$ cents " + e.parcelPrice);
+            
+            PayPalTransaction txn;
+            txn = new PayPalTransaction(e.agentId, e.parcelOwnerID, email, e.parcelPrice,
+        	scene, "Buy Land", PayPalTransaction.InternalTransactionType.Land, e);
+
+            // Add transaction to queue
+            lock (m_transactionsInProgress)
+                m_transactionsInProgress.Add(txn.TxID, txn);
+
+            string baseUrl = m_scenes[0].RegionInfo.ExternalHostName + ":" + m_scenes[0].RegionInfo.HttpPort;
+
+            user.SendLoadURL("DTL PayPal", txn.ObjectID, txn.To, false, "Confirm payment?",
+                             "http://" + baseUrl + "/dtlpp/?txn=" + txn.TxID);
+        }
+        
+        public XmlRpcResponse preflightBuyLandPrep_func(XmlRpcRequest request, IPEndPoint remoteClient)
+        {
+            XmlRpcResponse ret = new XmlRpcResponse();
+            Hashtable retparam = new Hashtable();
+            Hashtable membershiplevels = new Hashtable();
+            ArrayList levels = new ArrayList();
+            Hashtable level = new Hashtable();
+            level.Add("id", "00000000-0000-0000-0000-000000000000");
+            level.Add("description", "some level");
+            levels.Add(level);
+            //membershiplevels.Add("levels",levels);
+
+            Hashtable landuse = new Hashtable();
+            landuse.Add("upgrade", false);
+            landuse.Add("action", "http://invaliddomaininvalid.com/");
+
+            Hashtable currency = new Hashtable();
+            currency.Add("estimatedCost", 0);
+
+            Hashtable membership = new Hashtable();
+            membershiplevels.Add("upgrade", false);
+            membershiplevels.Add("action", "http://invaliddomaininvalid.com/");
+            membershiplevels.Add("levels", membershiplevels);
+
+            retparam.Add("success", true);
+            retparam.Add("currency", currency);
+            retparam.Add("membership", membership);
+            retparam.Add("landuse", landuse);
+            retparam.Add("confirm", "asdfajsdkfjasdkfjalsdfjasdf");
+
+            ret.Value = retparam;
+
+            return ret;
+        }
+
+        public XmlRpcResponse landBuy_func(XmlRpcRequest request, IPEndPoint remoteClient)
+        {
+            XmlRpcResponse ret = new XmlRpcResponse();
+            Hashtable retparam = new Hashtable();
+           
+            retparam.Add("success", true);
+            ret.Value = retparam;
+
+            return ret;
+        }
+        
+        private bool GetEmail(UUID key, out string email)
+        {
+            if (m_usersemail.TryGetValue(key, out email))
+        	return !string.IsNullOrEmpty(email);
+            
+            if (!m_allowGridEmails)
+        	return false;
+            
+            m_log.Warn("[DTL PayPal] Fetching email address from grid for " + key);
+            
+            CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
+            UserProfileData upd;
+            
+            upd = communicationsManager.UserService.GetUserProfile(key);
+            
+            if (upd == null)
+        	return false;
+            
+            if (string.IsNullOrEmpty(upd.Email))
+        	return false;
+            
+            // return email address found and cache it
+            email = upd.Email;
+            m_usersemail[upd.ID] = email;
+            return true;    
+        }
+        
+        private void SendInstantMessage(UUID dest, string message)
+        {
+        IClientAPI user = null;
+
+        // Find the user's controlling client.
+        lock(m_scenes)
+        {
+            foreach (Scene sc in m_scenes)
+            {
+        	List<ScenePresence> avs =
+        	    sc.GetAvatars().FindAll(
+        		x =>
+        		(x.UUID == dest && x.IsChildAgent == false)
+        	    );
+
+        	if(avs.Count > 0)
+        	{
+        	    if(avs.Count > 1)
+        	    {
+        		m_log.Warn("[DTL PayPal] Multiple avatars with same UUID! Aborting transaction.");
+        		return;
+        	    }
+        	    // Found the client,
+        	    // and their root scene.
+        	    user = avs[0].ControllingClient;
+        	}
+            }
+        }  
+        
+        if (user == null)
+            return;
+            
+        UUID transaction = UUID.Random();
+
+        GridInstantMessage msg = new GridInstantMessage();
+        msg.fromAgentID = new Guid(UUID.Zero.ToString()); // From server
+        msg.toAgentID = new Guid(dest.ToString());
+        msg.imSessionID = new Guid(transaction.ToString());
+        msg.timestamp = (uint)Util.UnixTimeSinceEpoch();
+        msg.fromAgentName = "DTL PayPal";
+        msg.dialog = (byte)19; // Object msg
+        msg.fromGroup = false;
+        msg.offline = (byte)1;
+        msg.ParentEstateID = (uint)0;
+        msg.Position = Vector3.Zero;
+        msg.RegionID = new Guid(UUID.Zero.ToString());
+        msg.binaryBucket = new byte[0];
+        msg.message = message;
+        
+        user.SendInstantMessage(msg);
+        }
+        
         #endregion
 
         public void RemoveRegion(Scene scene)
@@ -584,6 +944,9 @@ namespace DeepThink.PayPal
                 m_log.Info("[DTL PayPal] Not enabled.");
                 return;
             }
+            
+            m_allowGridEmails = config.GetBoolean("AllowGridEmails", false);
+            m_allowGroups = config.GetBoolean("AllowGroups", false);
 
             m_log.Warn("[DTL PayPal] Loaded.");
 
@@ -593,57 +956,103 @@ namespace DeepThink.PayPal
 
         public void FirstRegionLoaded()
         {
+            // Users
             IConfig users = m_config.Configs["DTL PayPal Users"];
 
             if (null == users)
             {
-                m_log.Warn("[DTL PayPal] No users specified, skipping load.");
-                return;
+                m_log.Warn("[DTL PayPal] No users specified in local ini file.");
             }
-
-            CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
-
-            // This aborts at the slightest provocation
-            // We realise this may be inconvenient for you,
-            // however it is important when dealing with
-            // financial matters to error check everything.
-
-            foreach (string user in users.GetKeys())
+            else
             {
-                m_log.Debug("[DTL PayPal] Looking up UUID for " + user);
-                string[] username = user.Split(new[] { ' ' }, 2);
-                UserProfileData upd = communicationsManager.UserService.GetUserProfile(username[0], username[1]);
+        	CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
 
-                if (upd != null)
-                {
+        	// This aborts at the slightest provocation
+        	// We realise this may be inconvenient for you,
+        	// however it is important when dealing with
+        	// financial matters to error check everything.
 
-                    m_log.Debug("[DTL PayPal] Found, " + user + " = " + upd.ID);
-                    string email = users.GetString(user);
+        	foreach (string user in users.GetKeys())
+        	{
+        	    m_log.Debug("[DTL PayPal] Looking up UUID for user " + user);
+        	    string[] username = user.Split(new[] { ' ' }, 2);
+        	    UserProfileData upd = communicationsManager.UserService.GetUserProfile(username[0], username[1]);
 
-                    if (string.IsNullOrEmpty(email))
-                    {
-                        m_log.Error("[DTL PayPal] PayPal email address not set for " + user +
-                                    " in [DTL PayPal Users] config section. Skipping.");
-                        // Did abort here, but since the users are being added to the list regardless...
-                    }
+        	    if (upd != null)
+        	    {
+        		m_log.Debug("[DTL PayPal] Found user, " + user + " = " + upd.ID);
+        		string email = users.GetString(user);
 
-                    if (!DTLPayPalHelpers.IsValidEmail(email))
-                    {
-                        m_log.Error("[DTL PayPal] PayPal email address not valid for " + user +
-                                    " in [DTL PayPal Users] config section. Skipping.");
-                        // See comment above.
-                    }
-
-                    m_usersemail[upd.ID] = email;
-                }
-                else // UserProfileData was null
-                {
-                    m_log.Error("[DTL PayPal] Error, User Profile not found for " + user +
-                                ". Check the spelling and/or any associated grid services. Aborting.");
-                    return;
-                }
+        		if (string.IsNullOrEmpty(email))
+        		{
+        		    m_log.Error("[DTL PayPal] PayPal email address not set for user " + user +
+        				" in [DTL PayPal Users] config section. Skipping.");
+        		    m_usersemail[upd.ID] = "";
+        		}
+        		else
+        		{
+        		    if (!DTLPayPalHelpers.IsValidEmail(email))
+        		    {
+        			m_log.Error("[DTL PayPal] PayPal email address not valid for user " + user +
+        				    " in [DTL PayPal Users] config section. Skipping.");
+        			m_usersemail[upd.ID] = "";
+        		    }
+        		    else
+        		    {
+        			m_usersemail[upd.ID] = email;
+        		    }
+        		}
+        	    }
+        	    else // UserProfileData was null
+        	    {
+        		m_log.Error("[DTL PayPal] Error, User Profile not found for user " + user +
+        			    ". Check the spelling and/or any associated grid services.");
+        	    }
+        	}
             }
 
+            // Groups
+            IConfig groups = m_config.Configs["DTL PayPal Groups"];
+
+            if (!m_allowGroups || null == groups)
+            {
+                m_log.Warn("[DTL PayPal] Groups disabled or no groups specified in local ini file.");
+            }
+            else
+            {
+        	// This aborts at the slightest provocation
+        	// We realise this may be inconvenient for you,
+        	// however it is important when dealing with
+        	// financial matters to error check everything.
+
+        	foreach (string group in groups.GetKeys())
+        	{
+        	    m_log.Debug("[DTL PayPal] Defining email address for UUID for group " + group);
+        	    UUID groupID = new UUID(group);
+        	    string email = groups.GetString(group);
+
+        	    if (string.IsNullOrEmpty(email))
+        	    {
+        		m_log.Error("[DTL PayPal] PayPal email address not set for group " + group +
+        			    " in [DTL PayPal Groups] config section. Skipping.");
+        		m_usersemail[groupID] = "";
+        	    }
+        	    else
+        	    {
+        		if (!DTLPayPalHelpers.IsValidEmail(email))
+        		{
+        		    m_log.Error("[DTL PayPal] PayPal email address not valid for group " + group +
+        				" in [DTL PayPal Groups] config section. Skipping.");
+        		    m_usersemail[groupID] = "";
+        		}
+        		else
+        		{
+        		    m_usersemail[groupID] = email;
+        		}
+        	    }
+        	}
+            }
+ 
             // Add HTTP Handlers (user, then PP-IPN)
             MainServer.Instance.AddHTTPHandler("/dtlpp/", DtlUserPage);
             MainServer.Instance.AddHTTPHandler("/dtlppipn/", DtlIPN);

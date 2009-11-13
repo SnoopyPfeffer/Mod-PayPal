@@ -33,18 +33,43 @@ via PayPal IPN of the payment - and will process the original request.
 Configuring this module:
 Add the following sections to your OpenSim.ini file
 
-[DTL PayPal]
-Enabled = true
 
+[DTL PayPal]
+    Enabled = true
+    
+    ; The URL to reference PayPal by
+    ; can be either www.paypal.com or www.sandbox.paypal.com
+    PayPalURL = www.paypal.com
+    
+    ; Fetch email addresses from User grid service; default is false
+    AllowGridEmails = true
+    
+    ; Allow group PayPal accounts; default is false
+    AllowGroups = true
+        
 [DTL PayPal Users]
-User Name=paypal@email.com
-Other User=another.paypal@email.com
-...
-etc
-...
+; Addresses of Recievers/Sellers PP user accounts
+; One per line, ie:
+Adam Frisby="adam@deepthink.com.au"
+Snoopy Pfeffer="snoopy.pfeffer@yahoo.com"
+;Plaza Builder="donations.osgrid@gmail.com"
+; ...
+
+[DTL PayPal Groups]
+; Addresses of Recievers/Sellers PP group accounts
+; One per line, ie:
+;a683cc8a-a5cc-4c40-87bc-ebcfbcfb1456="mygroup.account@yahoo.com"
+; ...
+
 
 How the PayPal Users section is formatted:
 One line per user, this should be the avatar name. The email address is the 
 primary email address used for the PayPal account that their funds will be 
-recieved by. Users not listed in this section will not be able to recieve 
-funds (however any user can send them.)
+received by. Users not listed in this section will not be able to receive 
+funds unless AllowGridEmails is set to true (however any user can send them.)
+
+How the PayPal Groups section is formatted:
+One line per group, this should be the group uuid. The email address is the 
+primary email address used for the PayPal account that their funds will be 
+received by. Groups not listed in this section will not be able to receive 
+funds.

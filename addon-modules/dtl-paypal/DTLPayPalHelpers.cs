@@ -42,7 +42,7 @@ namespace DeepThink.PayPal
             //regular expression pattern for valid email
             //addresses, allows for the following domains:
             //com,edu,info,gov,int,mil,net,org,biz,name,museum,coop,aero,pro,tv
-            const string pattern = @"^[-a-zA-Z0-9][-.a-zA-Z0-9]*@[-.a-zA-Z0-9]+(\.[-.a-zA-Z0-9]+)*\.(com|edu|info|gov|int|mil|net|org|biz|name|museum|coop|aero|pro|tv|[a-zA-Z]{2})$";
+            const string pattern = @"^[-_a-zA-Z0-9][-._a-zA-Z0-9]*@[-._a-zA-Z0-9]+(\.[-._a-zA-Z0-9]+)*\.(com|edu|info|gov|int|mil|net|org|biz|name|museum|coop|aero|pro|tv|[a-zA-Z]{2})$";
             //Regular expression object
             Regex check = new Regex(pattern, RegexOptions.IgnorePatternWhitespace);
             //boolean variable to return to calling method
