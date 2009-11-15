@@ -190,7 +190,7 @@ namespace PayPal
             string baseUrl = m_scenes[0].RegionInfo.ExternalHostName + ":" + m_scenes[0].RegionInfo.HttpPort;
 
             user.SendLoadURL("PayPal", txn.ObjectID, txn.To, false, "Confirm payment?",
-                             "http://" + baseUrl + "/modpp/?txn=" + txn.TxID);
+                             "http://" + baseUrl + "/pp/?txn=" + txn.TxID);
         }
 
         void TransferSuccess(PayPalTransaction transaction)
@@ -285,7 +285,7 @@ namespace PayPal
             return amount/(decimal) 100;
         }
 
-        public Hashtable ModUserPage(Hashtable request)
+        public Hashtable UserPage(Hashtable request)
         {
             UUID txnID = new UUID((string) request["txn"]);
 
@@ -314,7 +314,7 @@ namespace PayPal
                          "&no_shipping=" + HttpUtility.UrlEncode("1") +
                          "&return=" + HttpUtility.UrlEncode("http://" + baseUrl + "/") + // TODO: Add in a return page
                          "&cancel_return=" + HttpUtility.UrlEncode("http://" + baseUrl + "/") + // TODO: Add in a cancel page
-                         "&notify_url=" + HttpUtility.UrlEncode("http://" + baseUrl + "/modppipn/") +
+                         "&notify_url=" + HttpUtility.UrlEncode("http://" + baseUrl + "/ppipn/") +
                          "&no_note=" + HttpUtility.UrlEncode("1") +
                          "&currency_code=" + HttpUtility.UrlEncode("USD") +
                          "&lc=" + HttpUtility.UrlEncode("US") +
@@ -365,7 +365,7 @@ namespace PayPal
             }
         }
 
-        public Hashtable ModIPN(Hashtable request)
+        public Hashtable IPN(Hashtable request)
         {
             Hashtable reply = new Hashtable();
 
@@ -483,7 +483,7 @@ namespace PayPal
 
         public string Name
         {
-            get { return "Mod-PayPal Module - ©2009 Adam Frisby (adam@deepthink.com.au), Snoopy Pfeffer (snoopy.pfeffer@yahoo.com)"; }
+            get { return "PayPal Module - ©2009 Adam Frisby (adam@deepthink.com.au), Snoopy Pfeffer (snoopy.pfeffer@yahoo.com)"; }
         }
 
         public Type ReplaceableInterface
@@ -662,7 +662,7 @@ namespace PayPal
             string baseUrl = m_scenes[0].RegionInfo.ExternalHostName + ":" + m_scenes[0].RegionInfo.HttpPort;
 
             user.SendLoadURL("PayPal", txn.ObjectID, txn.To, false, "Confirm purchase?",
-                             "http://" + baseUrl + "/modpp/?txn=" + txn.TxID);
+                             "http://" + baseUrl + "/pp/?txn=" + txn.TxID);
         }
 
         public void requestPayPrice(IClientAPI client, UUID objectID)
@@ -778,7 +778,7 @@ namespace PayPal
             string baseUrl = m_scenes[0].RegionInfo.ExternalHostName + ":" + m_scenes[0].RegionInfo.HttpPort;
 
             user.SendLoadURL("PayPal", txn.ObjectID, txn.To, false, "Confirm payment?",
-                             "http://" + baseUrl + "/modpp/?txn=" + txn.TxID);
+                             "http://" + baseUrl + "/pp/?txn=" + txn.TxID);
         }
         
         public XmlRpcResponse preflightBuyLandPrep_func(XmlRpcRequest request, IPEndPoint remoteClient)
@@ -1039,7 +1039,7 @@ namespace PayPal
         	    }
         	    else
         	    {
-        		if (!ModPayPalHelpers.IsValidEmail(email))
+        		if (!PayPalHelpers.IsValidEmail(email))
         		{
         		    m_log.Error("[PayPal] PayPal email address not valid for group " + group +
         				" in [PayPal Groups] config section. Skipping.");
@@ -1054,8 +1054,8 @@ namespace PayPal
             }
  
             // Add HTTP Handlers (user, then PP-IPN)
-            MainServer.Instance.AddHTTPHandler("/modpp/", ModUserPage);
-            MainServer.Instance.AddHTTPHandler("/modppipn/", ModIPN);
+            MainServer.Instance.AddHTTPHandler("/pp/", UserPage);
+            MainServer.Instance.AddHTTPHandler("/ppipn/", IPN);
 
             // XMLRPC Handlers for Standalone
             MainServer.Instance.AddXmlRPCHandler("getCurrencyQuote", quote_func);
