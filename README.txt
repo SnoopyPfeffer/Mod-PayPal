@@ -34,7 +34,7 @@ Configuring this module:
 Add the following sections to your OpenSim.ini file
 
 
-[DTL PayPal]
+[PayPal]
     Enabled = true
     
     ; The URL to reference PayPal by
@@ -47,7 +47,7 @@ Add the following sections to your OpenSim.ini file
     ; Allow group PayPal accounts; default is false
     AllowGroups = true
         
-[DTL PayPal Users]
+[PayPal Users]
 ; Addresses of Recievers/Sellers PP user accounts
 ; One per line, ie:
 Adam Frisby="adam@deepthink.com.au"
@@ -55,7 +55,7 @@ Snoopy Pfeffer="snoopy.pfeffer@yahoo.com"
 ;Plaza Builder="donations.osgrid@gmail.com"
 ; ...
 
-[DTL PayPal Groups]
+[PayPal Groups]
 ; Addresses of Recievers/Sellers PP group accounts
 ; One per line, ie:
 ;a683cc8a-a5cc-4c40-87bc-ebcfbcfb1456="mygroup.account@yahoo.com"
