@@ -357,11 +357,11 @@ namespace PayPal
             return reply;
         }
 
-        internal static void debugStringDict(Dictionary<string,string> strs)
+        internal static void debugStringDict(Dictionary<string,object> strs)
         {
-            foreach (KeyValuePair<string, string> str in strs)
+            foreach (KeyValuePair<string, object> str in strs)
             {
-                m_log.Info("[PayPal] '" + str.Key + "' = '" + str.Value + "'");
+                m_log.Info("[PayPal] '" + str.Key + "' = '" + (string)str.Value + "'");
             }
         }
 
@@ -381,7 +381,7 @@ namespace PayPal
                 return reply;
             }
 
-            Dictionary<string, string> postvals = ServerUtils.ParseQueryString((string) request["body"]);
+            Dictionary<string, object> postvals = ServerUtils.ParseQueryString((string) request["body"]);
             string originalPost = (string) request["body"];
 
             string modifiedPost = originalPost + "&cmd=_notify-validate";
@@ -420,14 +420,14 @@ namespace PayPal
             // Handle IPN Components
             try
             {
-                if (postvals["payment_status"] != "Completed")
+                if ((string)postvals["payment_status"] != "Completed")
                 {
                     m_log.Error("[PayPal] Transaction not confirmed. Aborting.");
                     debugStringDict(postvals);
                     return reply;
                 }
 
-                if (postvals["mc_currency"].ToUpper() != "USD")
+                if (((string)postvals["mc_currency"]).ToUpper() != "USD")
                 {
                     m_log.Error("[PayPal] Payment was made in an incorrect currency (" + postvals["mc_currency"] +
                                 "). Aborting.");
@@ -436,7 +436,7 @@ namespace PayPal
                 }
 
                 // Check we have a transaction with the listed ID.
-                UUID txnID = new UUID(postvals["item_number"]);
+                UUID txnID = new UUID((string)postvals["item_number"]);
                 PayPalTransaction txn;
 
                 lock (m_transactionsInProgress)
@@ -452,7 +452,7 @@ namespace PayPal
                 }
 
                 // Check user paid correctly...
-                Decimal amountPaid = Decimal.Parse(postvals["mc_gross"]);
+                Decimal amountPaid = Decimal.Parse((string)postvals["mc_gross"]);
                 if(System.Math.Abs(ConvertAmountToCurrency(txn.Amount) - amountPaid) > (Decimal)0.001)
                 {
                     m_log.Error("[PayPal] Expected payment was " + ConvertAmountToCurrency(txn.Amount) +
