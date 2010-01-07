@@ -974,6 +974,15 @@ namespace PayPal
 
         	foreach (string user in users.GetKeys())
         	{
+                    UUID tmp;
+                    if(UUID.TryParse(user,out tmp))
+                    {
+                        m_log.Debug("[PayPal] User is UUID, skipping lookup...");
+                        string email = users.GetString(user);
+                        m_usersemail[tmp] = email;
+                        continue;
+                    }
+
         	    m_log.Debug("[PayPal] Looking up UUID for user " + user);
         	    string[] username = user.Split(new[] { ' ' }, 2);
         	    UserProfileData upd = communicationsManager.UserService.GetUserProfile(username[0], username[1]);
