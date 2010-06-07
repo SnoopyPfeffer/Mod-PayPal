@@ -34,12 +34,14 @@ using log4net;
 using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Framework;
+using OpenSim.Services.Interfaces;
 using OpenSim.Framework.Communications;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
 using OpenSim.Server.Base;
 using OpenSim.Region.CoreModules.World.Land;
+using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 using Nwc.XmlRpc;
 
 using Mono.Addins; // I hate you Mono.Addins
@@ -100,22 +102,13 @@ namespace PayPal
             {
                 foreach (Scene sc in m_scenes)
                 {
-                    List<ScenePresence> avs =
-                        sc.GetAvatars().FindAll(
-                            x =>
-                            (x.UUID == e.sender && x.IsChildAgent == false)
-                            );
+                    ScenePresence av = sc.GetScenePresence(e.sender);
 
-                    if(avs.Count > 0)
+                    if((av != null) && (av.IsChildAgent == false))
                     {
-                        if(avs.Count > 1)
-                        {
-                            m_log.Warn("[PayPal] Multiple avatars with same UUID! Aborting transaction.");
-                            return;
-                        }
                         // Found the client,
                         // and their root scene.
-                        user = avs[0].ControllingClient;
+                        user = av.ControllingClient;
                         scene = sc;
                     }
                 }
@@ -202,16 +195,16 @@ namespace PayPal
                     // User 2 User Transaction
         	    m_log.Info("[PayPal] Success: " + transaction.From + " did pay user " + transaction.To + " US$ cents " + transaction.Amount);
         	    
-        	    CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
-        	    UserProfileData upd;
+        	    IUserAccountService userAccountService = m_scenes[0].UserAccountService;
+        	    UserAccount ua;
         	    
                     // Notify receiver
-        	    upd = communicationsManager.UserService.GetUserProfile(transaction.From);
-        	    SendInstantMessage(transaction.To, upd.FirstName + " " + upd.SurName + " did pay you US$ cent " + transaction.Amount);
+        	    ua = userAccountService.GetUserAccount(transaction.From, "", "");
+        	    SendInstantMessage(transaction.To, ua.FirstName + " " + ua.LastName + " did pay you US$ cent " + transaction.Amount);
         	    
         	    // Notify sender
-        	    upd = communicationsManager.UserService.GetUserProfile(transaction.To);
-        	    SendInstantMessage(transaction.From, "You did pay " + upd.FirstName + " " + upd.SurName + " US$ cent " + transaction.Amount);
+        	    ua = userAccountService.GetUserAccount(transaction.To, "", "");
+        	    SendInstantMessage(transaction.From, "You did pay " + ua.FirstName + " " + ua.LastName + " US$ cent " + transaction.Amount);
                 }
                 else
                 {
@@ -584,23 +577,13 @@ namespace PayPal
             {
                 foreach (Scene sc in m_scenes)
                 {
-                    List<ScenePresence> avs =
-                        sc.GetAvatars().FindAll(
-                            x =>
-                            (x.UUID == agentID && x.IsChildAgent == false)
-                            );
+                    ScenePresence av = sc.GetScenePresence(agentID);
 
-                    if (avs.Count > 0)
+                    if((av != null) && (av.IsChildAgent == false))
                     {
-                        if (avs.Count > 1)
-                        {
-                            m_log.Warn("[PayPal] Multiple avatars with same UUID! Aborting transaction.");
-                            return;
-                        }
-
                         // Found the client,
                         // and their root scene.
-                        user = avs[0].ControllingClient;
+                        user = av.ControllingClient;
                         scene = sc;
                     }
                 }
@@ -714,23 +697,13 @@ namespace PayPal
             {
                 foreach (Scene sc in m_scenes)
                 {
-                    List<ScenePresence> avs =
-                        sc.GetAvatars().FindAll(
-                            x =>
-                            (x.UUID == e.agentId && x.IsChildAgent == false)
-                            );
+                    ScenePresence av = sc.GetScenePresence(e.agentId);
 
-                    if(avs.Count > 0)
+                    if((av != null) && (av.IsChildAgent == false))
                     {
-                        if(avs.Count > 1)
-                        {
-                            m_log.Warn("[PayPal] Multiple avatars with same UUID! Aborting transaction.");
-                            return;
-                        }
-
                         // Found the client,
                         // and their root scene.
-                        user = avs[0].ControllingClient;
+                        user = av.ControllingClient;
                         scene = sc;
                     }
                 }
@@ -836,21 +809,21 @@ namespace PayPal
         	return false;
             
             m_log.Warn("[PayPal] Fetching email address from grid for " + key);
+
+            IUserAccountService userAccountService = m_scenes[0].UserAccountService;
+            UserAccount ua;
             
-            CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
-            UserProfileData upd;
+            ua = userAccountService.GetUserAccount(key, "", "");
             
-            upd = communicationsManager.UserService.GetUserProfile(key);
-            
-            if (upd == null)
+            if (ua == null)
         	return false;
             
-            if (string.IsNullOrEmpty(upd.Email))
+            if (string.IsNullOrEmpty(ua.Email))
         	return false;
             
             // return email address found and cache it
-            email = upd.Email;
-            m_usersemail[upd.ID] = email;
+            email = ua.Email;
+            m_usersemail[ua.PrincipalID] = email;
             return true;    
         }
         
@@ -863,25 +836,16 @@ namespace PayPal
         {
             foreach (Scene sc in m_scenes)
             {
-        	List<ScenePresence> avs =
-        	    sc.GetAvatars().FindAll(
-        		x =>
-        		(x.UUID == dest && x.IsChildAgent == false)
-        	    );
+                ScenePresence av = sc.GetScenePresence(dest);
 
-        	if(avs.Count > 0)
-        	{
-        	    if(avs.Count > 1)
-        	    {
-        		m_log.Warn("[PayPal] Multiple avatars with same UUID! Aborting transaction.");
-        		return;
-        	    }
-        	    // Found the client,
-        	    // and their root scene.
-        	    user = avs[0].ControllingClient;
-        	}
+                if((av != null) && (av.IsChildAgent == false))
+                {
+                    // Found the client,
+                    // and their root scene.
+                    user = av.ControllingClient;
+                }
             }
-        }  
+        }
         
         if (user == null)
             return;
@@ -965,7 +929,7 @@ namespace PayPal
             }
             else
             {
-        	CommunicationsManager communicationsManager = m_scenes[0].CommsManager;
+        	IUserAccountService userAccountService = m_scenes[0].UserAccountService;
 
         	// This aborts at the slightest provocation
         	// We realise this may be inconvenient for you,
@@ -985,18 +949,18 @@ namespace PayPal
 
         	    m_log.Debug("[PayPal] Looking up UUID for user " + user);
         	    string[] username = user.Split(new[] { ' ' }, 2);
-        	    UserProfileData upd = communicationsManager.UserService.GetUserProfile(username[0], username[1]);
+        	    UserAccount ua = userAccountService.GetUserAccount(UUID.Zero, username[0], username[1]);
 
-        	    if (upd != null)
+        	    if (ua != null)
         	    {
-        		m_log.Debug("[PayPal] Found user, " + user + " = " + upd.ID);
+        		m_log.Debug("[PayPal] Found user, " + user + " = " + ua.PrincipalID);
         		string email = users.GetString(user);
 
         		if (string.IsNullOrEmpty(email))
         		{
         		    m_log.Error("[PayPal] PayPal email address not set for user " + user +
         				" in [PayPal Users] config section. Skipping.");
-        		    m_usersemail[upd.ID] = "";
+        		    m_usersemail[ua.PrincipalID] = "";
         		}
         		else
         		{
@@ -1004,11 +968,11 @@ namespace PayPal
         		    {
         			m_log.Error("[PayPal] PayPal email address not valid for user " + user +
         				    " in [PayPal Users] config section. Skipping.");
-        			m_usersemail[upd.ID] = "";
+        			m_usersemail[ua.PrincipalID] = "";
         		    }
         		    else
         		    {
-        			m_usersemail[upd.ID] = email;
+        			m_usersemail[ua.PrincipalID] = email;
         		    }
         		}
         	    }
