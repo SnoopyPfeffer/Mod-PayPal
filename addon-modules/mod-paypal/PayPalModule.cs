@@ -1046,9 +1046,6 @@ namespace PayPal
             return false; // Objects cant give PP Money. (in theory it's doable however, if the user is in the sim.)
         }
 
-        public event ObjectPaid OnObjectPaid;
-
-
         // This will be the maximum amount the user
         // is able to spend due to client limitations.
         // It is set to the equivilent of US$10K
@@ -1056,27 +1053,12 @@ namespace PayPal
         // size.
         //
         // This is 1 Million cents.
-        public int GetBalance(IClientAPI client)
+        public int GetBalance(UUID agentID)
         {
             return 1000000;
         }
 
-        public void ApplyUploadCharge(UUID agentID)
-        {
-            // N/A
-        }
-
-        public bool UploadCovered(IClientAPI client)
-        {
-            return true;
-        }
-
-        public void ApplyGroupCreationCharge(UUID agentID)
-        {
-            // N/A
-        }
-
-        public bool GroupCreationCovered(IClientAPI client)
+        public bool UploadCovered(IClientAPI client, int amount)
         {
             return true;
         }
@@ -1091,54 +1073,22 @@ namespace PayPal
             // N/A
         }
 
-        
-
-
-        /// <summary>
-        /// Old Pre-1.2 Linden Lab Economy Data
-        /// Completely irrelevant now.
-        /// (hooray for 7 year old cruft!)
-        /// 
-        /// We should probably hard-code this
-        /// into LLClientView TBH. -Adam
-        /// </summary>
-        /// <returns></returns>
-        public EconomyData GetEconomyData()
+        public void ApplyUploadCharge(UUID agentID, int amount, string text)
         {
-            const int ObjectCapacity = 45000;
-            const int ObjectCount = 0;
-            const int PriceEnergyUnit = 0;
-            const int PriceGroupCreate = 0;
-            const int PriceObjectClaim = 0;
-            const float PriceObjectRent = 0f;
-            const float PriceObjectScaleFactor = 0f;
-            const int PriceParcelClaim = 0;
-            const float PriceParcelClaimFactor = 0f;
-            const int PriceParcelRent = 0;
-            const int PricePublicObjectDecay = 0;
-            const int PricePublicObjectDelete = 0;
-            const int PriceRentLight = 0;
-            const int PriceUpload = 0;
-            const int TeleportMinPrice = 0;
-
-            EconomyData edata = new EconomyData();
-            edata.ObjectCapacity = ObjectCapacity;
-            edata.ObjectCount = ObjectCount;
-            edata.PriceEnergyUnit = PriceEnergyUnit;
-            edata.PriceGroupCreate = PriceGroupCreate;
-            edata.PriceObjectClaim = PriceObjectClaim;
-            edata.PriceObjectRent = PriceObjectRent;
-            edata.PriceObjectScaleFactor = PriceObjectScaleFactor;
-            edata.PriceParcelClaim = PriceParcelClaim;
-            edata.PriceParcelClaimFactor = PriceParcelClaimFactor;
-            edata.PriceParcelRent = PriceParcelRent;
-            edata.PricePublicObjectDecay = PricePublicObjectDecay;
-            edata.PricePublicObjectDelete = PricePublicObjectDelete;
-            edata.PriceRentLight = PriceRentLight;
-            edata.PriceUpload = PriceUpload;
-            edata.TeleportMinPrice = TeleportMinPrice;
-            return edata;
+            // N/A
         }
+
+        public int UploadCharge
+        {
+            get { return 0; }
+        }
+
+        public int GroupCreationCharge
+        {
+            get { return 0; }
+        }
+
+        public event ObjectPaid OnObjectPaid;
 
         #endregion
 
