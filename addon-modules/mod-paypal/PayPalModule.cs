@@ -234,7 +234,10 @@ namespace PayPal
         	    
         	    m_log.Info("[PayPal] Success: " + transaction.From + " did buy object " + transaction.ObjectID + " from " + transaction.To + " paying US$ cents " + transaction.Amount);
         	    
-                    s.PerformObjectBuy(s.SceneContents.GetControllingClient(transaction.From),
+                    IBuySellModule module = s.RequestModuleInterface<IBuySellModule>();
+                    if (module == null) {
+                        m_log.Warn("[PayPal] Missing BuySellModule! Transaction failed.");
+                    } else module.BuyObject(s.SceneContents.GetControllingClient(transaction.From),
                                        transaction.InternalPurchaseFolderID, part.LocalId,
                                        transaction.InternalPurchaseType);
                 }
@@ -597,7 +600,12 @@ namespace PayPal
 
             if (salePrice == 0)
             {
-        	scene.PerformObjectBuy(remoteClient, categoryID, localID, saleType);
+                IBuySellModule module = scene.RequestModuleInterface<IBuySellModule>();
+                if (module == null) {
+                    m_log.Warn("[PayPal] Missing BuySellModule! Transaction failed.");
+                    return;
+                }
+                module.BuyObject(remoteClient, categoryID, localID, saleType);
         	return;
             }
 
