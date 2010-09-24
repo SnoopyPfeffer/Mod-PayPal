@@ -44,7 +44,7 @@ using OpenSim.Region.CoreModules.World.Land;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
 using Nwc.XmlRpc;
 
-using Mono.Addins; // I hate you Mono.Addins
+using Mono.Addins;
 
 [assembly: Addin("PayPal","0.1")]
 [assembly: AddinDependency("OpenSim","0.5")]
@@ -138,7 +138,7 @@ namespace PayPal
         	{
         	    if (m_allowGroups)
         	    {
-        		if (!GetEmail(sop.OwnerID, out email))
+        		if (!GetEmail(scene.RegionInfo.ScopeID, sop.OwnerID, out email))
         		{
         		    m_log.Warn("[PayPal] Unknown email address of group " + sop.OwnerID);
         		    return;
@@ -148,7 +148,7 @@ namespace PayPal
         		return;
         	    }
         	} else {
-        	    if (!GetEmail(sop.OwnerID, out email))
+        	    if (!GetEmail(scene.RegionInfo.ScopeID, sop.OwnerID, out email))
         	    {
         		m_log.Warn("[PayPal] Unknown email address of user " + sop.OwnerID);
         		return;
@@ -164,7 +164,7 @@ namespace PayPal
             {
                 // Payment to a user.
         	string email;
-        	if (!GetEmail(e.receiver, out email))
+        	if (!GetEmail(scene.RegionInfo.ScopeID, e.receiver, out email))
         	{
         	    m_log.Warn("[PayPal] Unknown email address of user " + e.receiver);
         	    return;
@@ -554,12 +554,17 @@ namespace PayPal
             client.OnObjectBuy += ObjectBuy;
         }
 
-        internal Scene LocateSceneClientIn(UUID agentID)
+        internal Scene LocateSceneClientIn (UUID agentID)
         {
+            ScenePresence avatar = null;
+
             foreach (Scene scene in m_scenes)
             {
-                if(scene.Entities.ContainsKey(agentID))
-                    return scene;
+                if (scene.TryGetScenePresence (agentID, out avatar)) {
+                    if (!avatar.IsChildAgent) {
+                        return avatar.Scene;
+                    }
+                }
             }
 
             return null;
@@ -622,7 +627,7 @@ namespace PayPal
             {
         	if (m_allowGroups)
         	{
-        	    if (!GetEmail(sop.OwnerID, out email))
+        	    if (!GetEmail(scene.RegionInfo.ScopeID, sop.OwnerID, out email))
         	    {
         		m_log.Warn("[PayPal] Unknown email address of group " + sop.OwnerID);
         		return;
@@ -632,7 +637,7 @@ namespace PayPal
         	    return;
         	}
             } else {
-        	if (!GetEmail(sop.OwnerID, out email))
+        	if (!GetEmail(scene.RegionInfo.ScopeID, sop.OwnerID, out email))
         	{
         	    m_log.Warn("[PayPal] Unknown email address of user " + sop.OwnerID);
         	    return;
@@ -729,7 +734,7 @@ namespace PayPal
             {
         	if (m_allowGroups)
         	{
-        	    if (!GetEmail(e.parcelOwnerID, out email))
+        	    if (!GetEmail(scene.RegionInfo.ScopeID, e.parcelOwnerID, out email))
         	    {
         		m_log.Warn("[PayPal] Unknown email address of group " + e.parcelOwnerID);
         		return;
@@ -739,7 +744,7 @@ namespace PayPal
         	    return;
         	}
             } else {
-        	if (!GetEmail(e.parcelOwnerID, out email))
+        	if (!GetEmail(scene.RegionInfo.ScopeID, e.parcelOwnerID, out email))
         	{
         	    m_log.Warn("[PayPal] Unknown email address of user " + e.parcelOwnerID);
         	    return;
@@ -808,7 +813,7 @@ namespace PayPal
             return ret;
         }
         
-        private bool GetEmail(UUID key, out string email)
+        private bool GetEmail(UUID scope, UUID key, out string email)
         {
             if (m_usersemail.TryGetValue(key, out email))
         	return !string.IsNullOrEmpty(email);
@@ -821,7 +826,7 @@ namespace PayPal
             IUserAccountService userAccountService = m_scenes[0].UserAccountService;
             UserAccount ua;
             
-            ua = userAccountService.GetUserAccount(key, "", "");
+            ua = userAccountService.GetUserAccount(scope, key);
             
             if (ua == null)
         	return false;

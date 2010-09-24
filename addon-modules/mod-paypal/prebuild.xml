@@ -1,32 +1,33 @@
-<!-- Image Service Module -->
-<Project name="Mod.PayPal" path="addon-modules/mod-paypal" type="Library">
+<?xml version="1.0" ?>
+<Project frameworkVersion="v3_5" name="Mod.PayPal" path="addon-modules/mod-paypal/Modules" type="Library">
   <Configuration name="Debug">
     <Options>
-      <OutputPath>../../bin/</OutputPath>
+      <OutputPath>../../../bin/</OutputPath>
     </Options>
   </Configuration>
   <Configuration name="Release">
     <Options>
-      <OutputPath>../../bin/</OutputPath>
+      <OutputPath>../../../bin/</OutputPath>
     </Options>
   </Configuration>
  
-  <ReferencePath>../../bin/</ReferencePath>
+  <ReferencePath>../../../bin/</ReferencePath>
   <Reference name="System"/>
   <Reference name="System.Web"/>
-  <Reference name="OpenMetaverseTypes.dll"/>
-  <Reference name="Nini.dll" />
-  <Reference name="log4net.dll"/>
-  <Reference name="OpenSim.Framework.dll"/>
-  <Reference name="OpenSim.Framework.Servers.HttpServer.dll"/>
-  <Reference name="OpenSim.Region.Framework.dll"/>
-  <Reference name="OpenSim.Framework.Communications.dll"/>
-  <Reference name="OpenSim.Server.Base.dll"/>
-  <Reference name="OpenSim.Server.Base.dll"/>
-  <Reference name="XMLRPC.dll"/>
+  <Reference name="OpenMetaverseTypes" path="../../../bin/"/>
+  <Reference name="Nini" path="../../../bin/"/>
+  <Reference name="log4net" path="../../../bin/"/>
+  <Reference name="OpenSim.Framework" path="../../../bin/"/>
+  <Reference name="OpenSim.Framework.Servers.HttpServer" path="../../../bin/"/>
+  <Reference name="OpenSim.Region.Framework" path="../../../bin/"/>
+  <Reference name="OpenSim.Region.CoreModules" path="../../../bin/"/>
+  <Reference name="OpenSim.Framework.Communications" path="../../../bin/"/>
+  <Reference name="OpenSim.Server.Base" path="../../../bin/"/>
+  <Reference name="OpenSim.Services.Interfaces" path="../../../bin/"/>
+  <Reference name="XMLRPC" path="../../../bin/"/>
  
   <!-- To allow regions to have mono addins -->
-  <Reference name="Mono.Addins.dll" />
+  <Reference name="Mono.Addins" path="../../../bin/"/>
  
   <Files>
     <Match pattern="*.cs" recurse="true"/>
