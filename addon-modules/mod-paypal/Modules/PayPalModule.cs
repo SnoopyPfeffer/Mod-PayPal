@@ -484,7 +484,7 @@ namespace PayPal
 
         public Type ReplaceableInterface
         {
-            get { return typeof (IMoneyModule); }
+            get { return null; }
         }
 
         public void Initialise(IConfigSource source)
