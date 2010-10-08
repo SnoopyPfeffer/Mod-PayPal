@@ -72,7 +72,8 @@ namespace PayPal
 
         private readonly List<Scene> m_scenes = new List<Scene> ();
 
-        private readonly Dictionary<UUID, PayPalTransaction> m_transactionsInProgress = new Dictionary<UUID, PayPalTransaction> ();
+        private readonly Dictionary<UUID, PayPalTransaction> m_transactionsInProgress =
+            new Dictionary<UUID, PayPalTransaction> ();
 
         private bool m_allowGridEmails = false;
         private bool m_allowGroups = false;
@@ -220,14 +221,16 @@ namespace PayPal
                     }
                     
                     m_log.Info ("[PayPal] Success: " + transaction.From + " did buy object " +
-                                transaction.ObjectID + " from " + transaction.To + " paying US$ cents " + transaction.Amount);
+                                transaction.ObjectID + " from " + transaction.To + " paying US$ cents " +
+                                transaction.Amount);
                     
                     IBuySellModule module = s.RequestModuleInterface<IBuySellModule> ();
                     if (module == null) {
                         m_log.Warn ("[PayPal] Missing BuySellModule! Transaction failed.");
                     } else
                         module.BuyObject (s.SceneContents.GetControllingClient (transaction.From),
-                                          transaction.InternalPurchaseFolderID, part.LocalId, transaction.InternalPurchaseType);
+                                          transaction.InternalPurchaseFolderID, part.LocalId,
+                                          transaction.InternalPurchaseType, transaction.Amount);
                 }
             } else if (transaction.InternalType == PayPalTransaction.InternalTransactionType.Land) {
                 // User 2 Land Transaction
@@ -248,7 +251,8 @@ namespace PayPal
                 m_log.Info ("[PayPal] Success: " + e.agentId + " did buy land from " + e.parcelOwnerID +
                             " paying US$ cents " + e.parcelPrice);
                 
-                land.UpdateLandSold (e.agentId, e.groupId, e.groupOwned, (uint)e.transactionID, e.parcelPrice, e.parcelArea);
+                land.UpdateLandSold (e.agentId, e.groupId, e.groupOwned, (uint)e.transactionID,
+                                     e.parcelPrice, e.parcelArea);
             } else {
                 m_log.Error ("[PayPal] Unknown Internal Transaction Type.");
                 return;
@@ -358,7 +362,8 @@ namespace PayPal
             
             string modifiedPost = originalPost + "&cmd=_notify-validate";
             
-            HttpWebRequest httpWebRequest = (HttpWebRequest)WebRequest.Create ("https://" + m_ppurl + "/cgi-bin/webscr");
+            HttpWebRequest httpWebRequest = (HttpWebRequest)WebRequest.Create ("https://" + m_ppurl +
+                                                                               "/cgi-bin/webscr");
             httpWebRequest.Method = "POST";
             
             httpWebRequest.ContentLength = modifiedPost.Length;
@@ -560,7 +565,7 @@ namespace PayPal
                     m_log.Warn ("[PayPal] Missing BuySellModule! Transaction failed.");
                     return;
                 }
-                module.BuyObject (remoteClient, categoryID, localID, saleType);
+                module.BuyObject (remoteClient, categoryID, localID, saleType, salePrice);
                 return;
             }
             
@@ -934,11 +939,13 @@ namespace PayPal
                     string email = groups.GetString (@group);
                     
                     if (string.IsNullOrEmpty (email)) {
-                        m_log.Error ("[PayPal] PayPal email address not set for group " + @group + " in [PayPal Groups] config section. Skipping.");
+                        m_log.Error ("[PayPal] PayPal email address not set for group " +
+                                     @group + " in [PayPal Groups] config section. Skipping.");
                         m_usersemail[groupID] = "";
                     } else {
                         if (!PayPalHelpers.IsValidEmail (email)) {
-                            m_log.Error ("[PayPal] PayPal email address not valid for group " + @group + " in [PayPal Groups] config section. Skipping.");
+                            m_log.Error ("[PayPal] PayPal email address not valid for group " +
+                                         @group + " in [PayPal Groups] config section. Skipping.");
                             m_usersemail[groupID] = "";
                         } else {
                             m_usersemail[groupID] = email;
@@ -1035,7 +1042,7 @@ namespace PayPal
             return returnval;
             
             
-            
+
         }
 
         public XmlRpcResponse buy_func (XmlRpcRequest request, IPEndPoint remoteClient)
