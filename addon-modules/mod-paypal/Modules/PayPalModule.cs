@@ -72,6 +72,8 @@ namespace PayPal
 
         private readonly List<Scene> m_scenes = new List<Scene> ();
 
+        private const int m_maxBalance = 100000;
+
         private readonly Dictionary<UUID, PayPalTransaction> m_transactionsInProgress =
             new Dictionary<UUID, PayPalTransaction> ();
 
@@ -514,6 +516,8 @@ namespace PayPal
             client.OnMoneyBalanceRequest += OnMoneyBalanceRequest;
             client.OnRequestPayPrice += requestPayPrice;
             client.OnObjectBuy += ObjectBuy;
+
+            client.SendMoneyBalance (UUID.Random(), true, new byte[0], m_maxBalance);
         }
 
         internal Scene LocateSceneClientIn (UUID agentID)
@@ -629,8 +633,10 @@ namespace PayPal
 
         static void OnMoneyBalanceRequest (IClientAPI client, UUID agentID, UUID SessionID, UUID TransactionID)
         {
-            const int returnfunds = 1000000;
-            client.SendMoneyBalance (TransactionID, true, new byte[0], returnfunds);
+            if (client.AgentId == agentID && client.SessionId == SessionID)
+            {
+                client.SendMoneyBalance (TransactionID, true, new byte[0], m_maxBalance);
+            }
         }
 
         private void ValidateLandBuy (Object osender, EventManager.LandBuyArgs e)
@@ -984,7 +990,7 @@ namespace PayPal
         // This is 1 Million cents.
         public int GetBalance (UUID agentID)
         {
-            return 1000000;
+            return m_maxBalance;
         }
 
         public bool UploadCovered (IClientAPI client, int amount)
@@ -1025,14 +1031,13 @@ namespace PayPal
         {
             // Hashtable requestData = (Hashtable) request.Params[0];
             // UUID agentId = UUID.Zero;
-            const int amount = 10000;
             Hashtable quoteResponse = new Hashtable ();
             XmlRpcResponse returnval = new XmlRpcResponse ();
             
             
             Hashtable currencyResponse = new Hashtable ();
             currencyResponse.Add ("estimatedCost", 0);
-            currencyResponse.Add ("currencyBuy", amount);
+            currencyResponse.Add ("currencyBuy", m_maxBalance);
             
             quoteResponse.Add ("success", true);
             quoteResponse.Add ("currency", currencyResponse);
@@ -1040,9 +1045,6 @@ namespace PayPal
             
             returnval.Value = quoteResponse;
             return returnval;
-            
-            
-
         }
 
         public XmlRpcResponse buy_func (XmlRpcRequest request, IPEndPoint remoteClient)
