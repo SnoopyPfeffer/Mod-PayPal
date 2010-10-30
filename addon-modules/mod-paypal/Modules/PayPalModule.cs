@@ -85,6 +85,24 @@ namespace PayPal
         /// </summary>
         private Dictionary<ulong, Scene> m_scenel = new Dictionary<ulong, Scene> ();
 
+        // private int m_stipend = 1000;
+        private float EnergyEfficiency = 0f;
+        private int ObjectCount = 0;
+        private int PriceEnergyUnit = 0;
+        private int PriceGroupCreate = 0;
+        private int PriceObjectClaim = 0;
+        private float PriceObjectRent = 0f;
+        private float PriceObjectScaleFactor = 0f;
+        private int PriceParcelClaim = 0;
+        private float PriceParcelClaimFactor = 0f;
+        private int PriceParcelRent = 0;
+        private int PricePublicObjectDecay = 0;
+        private int PricePublicObjectDelete = 0;
+        private int PriceRentLight = 0;
+        private int PriceUpload = 0;
+        private int TeleportMinPrice = 0;
+        private float TeleportPriceExponent = 0f;
+
         #region Currency - PayPal
 
         /// <summary>
@@ -95,7 +113,7 @@ namespace PayPal
         /// and not ApplyCharge.</remarks>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        void EventManager_OnMoneyTransfer (object sender, EventManager.MoneyTransferArgs e)
+        void OnMoneyTransfer (object sender, EventManager.MoneyTransferArgs e)
         {
             if (!m_active)
                 return;
@@ -228,7 +246,7 @@ namespace PayPal
                     
                     IBuySellModule module = s.RequestModuleInterface<IBuySellModule> ();
                     if (module == null) {
-                        m_log.Warn ("[PayPal] Missing BuySellModule! Transaction failed.");
+                        m_log.Error ("[PayPal] Missing BuySellModule! Transaction failed.");
                     } else
                         module.BuyObject (s.SceneContents.GetControllingClient (transaction.From),
                                           transaction.InternalPurchaseFolderID, part.LocalId,
@@ -339,7 +357,7 @@ namespace PayPal
         static internal void debugStringDict (Dictionary<string, object> strs)
         {
             foreach (KeyValuePair<string, object> str in strs) {
-                m_log.Info ("[PayPal] '" + str.Key + "' = '" + (string)str.Value + "'");
+                m_log.Debug ("[PayPal] '" + str.Key + "' = '" + (string)str.Value + "'");
             }
         }
 
@@ -396,7 +414,7 @@ namespace PayPal
             // Handle IPN Components
             try {
                 if ((string)postvals["payment_status"] != "Completed") {
-                    m_log.Error ("[PayPal] Transaction not confirmed. Aborting.");
+                    m_log.Warn ("[PayPal] Transaction not confirmed. Aborting.");
                     debugStringDict (postvals);
                     return reply;
                 }
@@ -449,18 +467,88 @@ namespace PayPal
 
         #region Implementation of IRegionModuleBase
 
+        /// <summary>
+        /// Event Handler for when a root agent becomes a child agent
+        /// </summary>
+        /// <param name="avatar"></param>
+        private void MakeChildAgent(ScenePresence avatar)
+        {
+            
+        }
+
+
         public string Name {
             get { return "PayPal Module - ©2009 Adam Frisby (adam@deepthink.com.au), Snoopy Pfeffer (snoopy.pfeffer@yahoo.com)"; }
         }
 
         public Type ReplaceableInterface {
-            get { return null; }
+            get { return typeof(IMoneyModule); }
         }
 
         public void Initialise (IConfigSource source)
         {
             m_log.Info ("[PayPal] Initialising.");
             m_config = source;
+
+            IConfig config = m_config.Configs["PayPal"];
+            
+            if (null == config) {
+                m_log.Warn ("[PayPal] No configuration specified. Skipping.");
+                return;
+            }
+            
+            if (!config.GetBoolean ("Enabled", false))
+            {
+                m_log.Info ("[PayPal] Not enabled. (to enable set \"Enabled = true\" in [PayPal])");
+                return;
+            }
+
+            m_ppurl = config.GetString ("PayPalURL", m_ppurl);
+
+            m_allowGridEmails = config.GetBoolean ("AllowGridEmails", false);
+            m_allowGroups = config.GetBoolean ("AllowGroups", false);
+            
+            IConfig startupConfig = m_config.Configs["Startup"];
+
+            if (startupConfig != null)
+            {
+                m_enabled = (startupConfig.GetString("economymodule", "PayPalMoneyModule") == "PayPalMoneyModule");
+
+                if (!m_enabled) {
+                    m_log.Info ("[PayPal] Not enabled. (to enable set \"economymodule = PayPalMoneyModule\" in [Startup])");
+                    return;
+                }
+            }
+
+            IConfig economyConfig = m_config.Configs["Economy"];
+
+            if (economyConfig != null)
+            {
+                PriceEnergyUnit = economyConfig.GetInt("PriceEnergyUnit", 100);
+                PriceObjectClaim = economyConfig.GetInt("PriceObjectClaim", 10);
+                PricePublicObjectDecay = economyConfig.GetInt("PricePublicObjectDecay", 4);
+                PricePublicObjectDelete = economyConfig.GetInt("PricePublicObjectDelete", 4);
+                PriceParcelClaim = economyConfig.GetInt("PriceParcelClaim", 1);
+                PriceParcelClaimFactor = economyConfig.GetFloat("PriceParcelClaimFactor", 1f);
+                PriceUpload = economyConfig.GetInt("PriceUpload", 0);
+                PriceRentLight = economyConfig.GetInt("PriceRentLight", 5);
+                TeleportMinPrice = economyConfig.GetInt("TeleportMinPrice", 2);
+                TeleportPriceExponent = economyConfig.GetFloat("TeleportPriceExponent", 2f);
+                EnergyEfficiency = economyConfig.GetFloat("EnergyEfficiency", 1);
+                PriceObjectRent = economyConfig.GetFloat("PriceObjectRent", 1);
+                PriceObjectScaleFactor = economyConfig.GetFloat("PriceObjectScaleFactor", 10);
+                PriceParcelRent = economyConfig.GetInt("PriceParcelRent", 1);
+                PriceGroupCreate = economyConfig.GetInt("PriceGroupCreate", -1);
+            }
+
+            m_log.Info ("[PayPal] Loaded.");
+            
+            m_enabled = true;
+        }
+
+        public void PostInitialise ()
+        {
+
         }
 
         public void Close ()
@@ -470,19 +558,19 @@ namespace PayPal
 
         public void AddRegion (Scene scene)
         {
-            m_log.Info ("[PayPal] Found Scene.");
-            
             lock (m_scenes)
                 m_scenes.Add (scene);
             
-            if (m_enabled)
-                scene.RegisterModuleInterface<IMoneyModule> (this);
-            
             if (m_enabled) {
+                m_log.Info ("[PayPal] Found Scene.");
+
+                scene.RegisterModuleInterface<IMoneyModule> (this);
                 IHttpServer httpServer = MainServer.Instance;
                 
-                lock (m_scenel) {
-                    if (m_scenel.Count == 0) {
+                lock (m_scenel)
+                {
+                    if (m_scenel.Count == 0)
+                    {
                         // XMLRPCHandler = scene;
                         
                         // To use the following you need to add:
@@ -491,19 +579,28 @@ namespace PayPal
                         // This commonly looks like -helperuri http://127.0.0.1:9000/
                         
                         // Local Server..  enables functionality only.
+                        httpServer.AddXmlRPCHandler("getCurrencyQuote", quote_func);
+                        httpServer.AddXmlRPCHandler("buyCurrency", buy_func);
                         httpServer.AddXmlRPCHandler ("preflightBuyLandPrep", preflightBuyLandPrep_func);
                         httpServer.AddXmlRPCHandler ("buyLandPrep", landBuy_func);
                     }
                     
-                    if (m_scenel.ContainsKey (scene.RegionInfo.RegionHandle)) {
+                    if (m_scenel.ContainsKey (scene.RegionInfo.RegionHandle))
+                    {
                         m_scenel[scene.RegionInfo.RegionHandle] = scene;
-                    } else {
+                    }
+                    else
+                    {
                         m_scenel.Add (scene.RegionInfo.RegionHandle, scene);
                     }
                 }
                 
-                scene.EventManager.OnMoneyTransfer += EventManager_OnMoneyTransfer;
-                scene.EventManager.OnNewClient += EventManager_OnNewClient;
+                scene.EventManager.OnNewClient += OnNewClient;
+                scene.EventManager.OnMoneyTransfer += OnMoneyTransfer;
+                scene.EventManager.OnClientClosed += ClientClosed;
+                scene.EventManager.OnAvatarEnteringNewParcel += AvatarEnteringParcel;
+                scene.EventManager.OnMakeChildAgent += MakeChildAgent;
+                scene.EventManager.OnClientClosed += ClientLoggedOut;
                 scene.EventManager.OnValidateLandBuy += ValidateLandBuy;
                 scene.EventManager.OnLandBuy += processLandBuy;
             }
@@ -511,22 +608,59 @@ namespace PayPal
 
         #region Basic Plumbing of Currency Events
 
-        void EventManager_OnNewClient (IClientAPI client)
+        void OnNewClient (IClientAPI client)
         {
+            // Subscribe to Money messages
+            client.OnEconomyDataRequest += EconomyDataRequestHandler;
             client.OnMoneyBalanceRequest += OnMoneyBalanceRequest;
             client.OnRequestPayPrice += requestPayPrice;
             client.OnObjectBuy += ObjectBuy;
+            client.OnLogout += ClientClosed;
 
             client.SendMoneyBalance (UUID.Random(), true, new byte[0], m_maxBalance);
+        }
+
+        /// <summary>
+        /// Locates a IClientAPI for the client specified
+        /// </summary>
+        /// <param name="AgentID"></param>
+        /// <returns></returns>
+        private IClientAPI LocateClientObject(UUID AgentID)
+        {
+            ScenePresence tPresence = null;
+            IClientAPI rclient = null;
+
+            lock (m_scenel)
+            {
+                foreach (Scene _scene in m_scenel.Values)
+                {
+                    tPresence = _scene.GetScenePresence(AgentID);
+                    if (tPresence != null)
+                    {
+                        if (!tPresence.IsChildAgent)
+                        {
+                            rclient = tPresence.ControllingClient;
+                        }
+                    }
+                    if (rclient != null)
+                    {
+                        return rclient;
+                    }
+                }
+            }
+            return null;
         }
 
         internal Scene LocateSceneClientIn (UUID agentID)
         {
             ScenePresence avatar = null;
             
-            foreach (Scene scene in m_scenes) {
-                if (scene.TryGetScenePresence (agentID, out avatar)) {
-                    if (!avatar.IsChildAgent) {
+            foreach (Scene scene in m_scenes)
+            {
+                if (scene.TryGetScenePresence (agentID, out avatar))
+                {
+                    if (!avatar.IsChildAgent)
+                    {
                         return avatar.Scene;
                     }
                 }
@@ -566,7 +700,7 @@ namespace PayPal
             if (salePrice == 0) {
                 IBuySellModule module = scene.RequestModuleInterface<IBuySellModule> ();
                 if (module == null) {
-                    m_log.Warn ("[PayPal] Missing BuySellModule! Transaction failed.");
+                    m_log.Error ("[PayPal] Missing BuySellModule! Transaction failed.");
                     return;
                 }
                 module.BuyObject (remoteClient, categoryID, localID, saleType, salePrice);
@@ -575,7 +709,7 @@ namespace PayPal
             
             SceneObjectPart sop = scene.GetSceneObjectPart (localID);
             if (sop == null) {
-                m_log.Warn ("[PayPal] Unable to find SceneObjectPart that was paid. Aborting transaction.");
+                m_log.Error ("[PayPal] Unable to find SceneObjectPart that was paid. Aborting transaction.");
                 return;
             }
             
@@ -631,6 +765,63 @@ namespace PayPal
             client.SendPayPrice (objectID, root.PayPrice);
         }
 
+        /// <summary>
+        /// Event Handler for when the client logs out.
+        /// </summary>
+        /// <param name="AgentId"></param>
+        private void ClientLoggedOut(UUID AgentId, Scene scene)
+        {
+            
+        }
+
+        /// <summary>
+        /// Call this when the client disconnects.
+        /// </summary>
+        /// <param name="client"></param>
+        public void ClientClosed(IClientAPI client)
+        {
+            ClientClosed(client.AgentId, null);
+        }
+
+        /// <summary>
+        /// When the client closes the connection we remove their accounting info from memory to free up resources.
+        /// </summary>
+        /// <param name="AgentID"></param>
+        public void ClientClosed(UUID AgentID, Scene scene)
+        {
+            
+        }
+
+        /// <summary>
+        /// Event Handler for when an Avatar enters one of the parcels in the simulator.
+        /// </summary>
+        /// <param name="avatar"></param>
+        /// <param name="localLandID"></param>
+        /// <param name="regionID"></param>
+        private void AvatarEnteringParcel(ScenePresence avatar, int localLandID, UUID regionID)
+        {
+            
+        }
+
+        /// <summary>
+        /// Event called Economy Data Request handler.
+        /// </summary>
+        /// <param name="agentId"></param>
+        public void EconomyDataRequestHandler(UUID agentId)
+        {
+            IClientAPI user = LocateClientObject(agentId);
+
+            if (user != null)
+            {
+                Scene s = LocateSceneClientIn(user.AgentId);
+
+                user.SendEconomyData(EnergyEfficiency, s.RegionInfo.ObjectCapacity, ObjectCount, PriceEnergyUnit, PriceGroupCreate,
+                                     PriceObjectClaim, PriceObjectRent, PriceObjectScaleFactor, PriceParcelClaim, PriceParcelClaimFactor,
+                                     PriceParcelRent, PricePublicObjectDecay, PricePublicObjectDelete, PriceRentLight, PriceUpload,
+                                     TeleportMinPrice, TeleportPriceExponent);
+            }
+        }
+
         static void OnMoneyBalanceRequest (IClientAPI client, UUID agentID, UUID SessionID, UUID TransactionID)
         {
             if (client.AgentId == agentID && client.SessionId == SessionID)
@@ -641,11 +832,8 @@ namespace PayPal
 
         private void ValidateLandBuy (Object osender, EventManager.LandBuyArgs e)
         {
-            // confirm purchase of land for free
-            if (e.parcelPrice == 0) {
-                lock (e) {
-                    e.economyValidated = true;
-                }
+            lock (e) {
+                e.economyValidated = true;
             }
         }
 
@@ -675,7 +863,7 @@ namespace PayPal
             }
             
             if (scene == null || user == null) {
-                m_log.Warn ("[PayPal] Unable to find scene or user! Aborting transaction.");
+                m_log.Error ("[PayPal] Unable to find scene or user! Aborting transaction.");
                 return;
             }
             
@@ -769,7 +957,7 @@ namespace PayPal
             if (!m_allowGridEmails)
                 return false;
             
-            m_log.Warn ("[PayPal] Fetching email address from grid for " + key);
+            m_log.Info ("[PayPal] Fetching email address from grid for " + key);
             
             IUserAccountService userAccountService = m_scenes[0].UserAccountService;
             UserAccount ua;
@@ -838,45 +1026,25 @@ namespace PayPal
                 m_scenes.Remove (scene);
             
             if (m_enabled)
-                scene.EventManager.OnMoneyTransfer -= EventManager_OnMoneyTransfer;
+                scene.EventManager.OnMoneyTransfer -= OnMoneyTransfer;
         }
 
         public void RegionLoaded (Scene scene)
         {
-            lock (m_setupLock)
-                if (m_setup == false) {
-                    m_setup = true;
-                    FirstRegionLoaded ();
-                }
-        }
-
-        public void PostInitialise ()
-        {
-            IConfig config = m_config.Configs["PayPal"];
-            
-            if (null == config) {
-                m_log.Info ("[PayPal] No configuration specified. Skipping.");
-                return;
+            if (m_enabled)
+            {
+                lock (m_setupLock)
+                    if (m_setup == false) {
+                        m_setup = true;
+                        FirstRegionLoaded ();
+                    }
             }
-            
-            m_ppurl = config.GetString ("PayPalURL", m_ppurl);
-            
-            if (!config.GetBoolean ("Enabled", false)) {
-                m_log.Info ("[PayPal] Not enabled.");
-                return;
-            }
-            
-            m_allowGridEmails = config.GetBoolean ("AllowGridEmails", false);
-            m_allowGroups = config.GetBoolean ("AllowGroups", false);
-            
-            m_log.Warn ("[PayPal] Loaded.");
-            
-            
-            m_enabled = true;
         }
 
         public void FirstRegionLoaded ()
         {
+            m_log.Info ("[PayPal] Loading predefined users and groups.");
+
             // Users
             IConfig users = m_config.Configs["PayPal Users"];
             
