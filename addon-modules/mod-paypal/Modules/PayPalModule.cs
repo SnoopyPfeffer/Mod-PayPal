@@ -832,8 +832,11 @@ namespace PayPal
 
         private void ValidateLandBuy (Object osender, EventManager.LandBuyArgs e)
         {
-            lock (e) {
-                e.economyValidated = true;
+            // confirm purchase of land for free
+            if (e.parcelPrice == 0) {
+                lock (e) {
+                    e.economyValidated = true;
+                }
             }
         }
 
