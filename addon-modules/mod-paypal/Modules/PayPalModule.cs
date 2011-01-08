@@ -478,11 +478,11 @@ namespace PayPal
 
 
         public string Name {
-            get { return "PayPal Module - ©2009 Adam Frisby (adam@deepthink.com.au), Snoopy Pfeffer (snoopy.pfeffer@yahoo.com)"; }
+            get { return "PayPalMoneyModule"; }
         }
 
         public Type ReplaceableInterface {
-            get { return typeof(IMoneyModule); }
+            get { return null; }
         }
 
         public void Initialise (IConfigSource source)
