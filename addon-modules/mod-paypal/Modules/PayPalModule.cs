@@ -822,9 +822,9 @@ namespace PayPal
             }
         }
 
-        static void OnMoneyBalanceRequest (IClientAPI client, UUID agentID, UUID SessionID, UUID TransactionID)
+        void OnMoneyBalanceRequest (IClientAPI client, UUID agentID, UUID SessionID, UUID TransactionID)
         {
-            if (client.AgentId == agentID && client.SessionId == SessionID)
+            if (client.AgentId == agentID && client.SessionId == SessionID && (client == LocateClientObject(agentID)))
             {
                 client.SendMoneyBalance (TransactionID, true, new byte[0], m_maxBalance);
             }
