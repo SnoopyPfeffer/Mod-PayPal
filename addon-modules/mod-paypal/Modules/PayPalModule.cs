@@ -42,6 +42,7 @@ using OpenSim.Framework.Communications;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
+using OpenSim.Framework.Servers;
 using OpenSim.Server.Base;
 using OpenSim.Region.CoreModules.World.Land;
 using GridRegion = OpenSim.Services.Interfaces.GridRegion;
@@ -247,10 +248,13 @@ namespace PayPal
                     IBuySellModule module = s.RequestModuleInterface<IBuySellModule> ();
                     if (module == null) {
                         m_log.Error ("[PayPal] Missing BuySellModule! Transaction failed.");
-                    } else
-                        module.BuyObject (s.SceneContents.GetControllingClient (transaction.From),
+                    } else {
+                        ScenePresence sp = s.GetScenePresence(transaction.From);
+                        if (sp != null)
+                            module.BuyObject (sp.ControllingClient,
                                           transaction.InternalPurchaseFolderID, part.LocalId,
                                           transaction.InternalPurchaseType, transaction.Amount);
+                    }
                 }
             } else if (transaction.InternalType == PayPalTransaction.InternalTransactionType.Land) {
                 // User 2 Land Transaction
