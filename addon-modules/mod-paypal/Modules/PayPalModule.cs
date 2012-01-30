@@ -1168,12 +1168,12 @@ namespace PayPal
             return m_maxBalance;
         }
 
-        public bool UploadCovered (IClientAPI client, int amount)
+        public bool UploadCovered (UUID agentID, int amount)
         {
             return true;
         }
 
-        public bool AmountCovered (IClientAPI client, int amount)
+        public bool AmountCovered (UUID agentID, int amount)
         {
             return true;
         }
