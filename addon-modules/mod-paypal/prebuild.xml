@@ -17,13 +17,14 @@
   <Reference name="OpenMetaverseTypes" path="../../../bin/"/>
   <Reference name="Nini" path="../../../bin/"/>
   <Reference name="log4net" path="../../../bin/"/>
-  <Reference name="OpenSim.Framework" path="../../../bin/"/>
-  <Reference name="OpenSim.Framework.Servers.HttpServer" path="../../../bin/"/>
-  <Reference name="OpenSim.Region.Framework" path="../../../bin/"/>
-  <Reference name="OpenSim.Region.CoreModules" path="../../../bin/"/>
-  <Reference name="OpenSim.Framework.Communications" path="../../../bin/"/>
-  <Reference name="OpenSim.Server.Base" path="../../../bin/"/>
-  <Reference name="OpenSim.Services.Interfaces" path="../../../bin/"/>
+  <Reference name="OpenSim.Framework"/>
+  <Reference name="OpenSim.Framework.Servers"/>
+  <Reference name="OpenSim.Framework.Servers.HttpServer"/>
+  <Reference name="OpenSim.Region.Framework"/>
+  <Reference name="OpenSim.Region.CoreModules"/>
+  <Reference name="OpenSim.Framework.Communications"/>
+  <Reference name="OpenSim.Server.Base"/>
+  <Reference name="OpenSim.Services.Interfaces"/>
   <Reference name="XMLRPC" path="../../../bin/"/>
  
   <!-- To allow regions to have mono addins -->
