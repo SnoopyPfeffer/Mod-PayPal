@@ -445,10 +445,17 @@ namespace PayPal
                 }
                 
                 // Check user paid correctly...
+                if (((string)postvals["business"]).ToLower () != txn.SellersEmail.ToLower ()) {
+                    m_log.Error ("[PayPal] Expected payment to " + txn.SellersEmail +
+                                 " but receiver was " + (string)postvals["business"] + " instead. Aborting.");
+                    debugStringDict (postvals);
+                    return reply;
+                }
+
                 Decimal amountPaid = Decimal.Parse ((string)postvals["mc_gross"]);
                 if (System.Math.Abs (ConvertAmountToCurrency (txn.Amount) - amountPaid) > (Decimal)0.001) {
                     m_log.Error ("[PayPal] Expected payment was " + ConvertAmountToCurrency (txn.Amount) +
-                                 " but recieved " + amountPaid + " " + postvals["mc_currency"] + " instead. Aborting.");
+                                 " but received " + amountPaid + " " + postvals["mc_currency"] + " instead. Aborting.");
                     debugStringDict (postvals);
                     return reply;
                 }
