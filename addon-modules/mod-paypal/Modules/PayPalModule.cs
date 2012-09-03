@@ -80,6 +80,8 @@ namespace PayPal
 
         private bool m_allowGridEmails = false;
         private bool m_allowGroups = false;
+        private bool m_balanceOnEntry = true;
+        private string m_messageOnEntry = "PayPal Money System:  OS$ 100 = US$ 1.00";
 
         /// <summary>
         /// Scenes by Region Handle
@@ -478,16 +480,6 @@ namespace PayPal
 
         #region Implementation of IRegionModuleBase
 
-        /// <summary>
-        /// Event Handler for when a root agent becomes a child agent
-        /// </summary>
-        /// <param name="avatar"></param>
-        private void MakeChildAgent(ScenePresence avatar)
-        {
-            
-        }
-
-
         public string Name {
             get { return "PayPalMoneyModule"; }
         }
@@ -518,6 +510,8 @@ namespace PayPal
 
             m_allowGridEmails = config.GetBoolean ("AllowGridEmails", false);
             m_allowGroups = config.GetBoolean ("AllowGroups", false);
+            m_balanceOnEntry = config.GetBoolean ("BalanceOnEntry", true);
+            m_messageOnEntry = config.GetString ("MessageOnEntry", m_messageOnEntry);
             
             IConfig startupConfig = m_config.Configs["Startup"];
 
@@ -607,11 +601,8 @@ namespace PayPal
                 }
                 
                 scene.EventManager.OnNewClient += OnNewClient;
+                scene.EventManager.OnMakeRootAgent += MakeRootAgent;
                 scene.EventManager.OnMoneyTransfer += OnMoneyTransfer;
-                scene.EventManager.OnClientClosed += ClientClosed;
-                scene.EventManager.OnAvatarEnteringNewParcel += AvatarEnteringParcel;
-                scene.EventManager.OnMakeChildAgent += MakeChildAgent;
-                scene.EventManager.OnClientClosed += ClientLoggedOut;
                 scene.EventManager.OnValidateLandBuy += ValidateLandBuy;
                 scene.EventManager.OnLandBuy += processLandBuy;
             }
@@ -626,9 +617,23 @@ namespace PayPal
             client.OnMoneyBalanceRequest += OnMoneyBalanceRequest;
             client.OnRequestPayPrice += requestPayPrice;
             client.OnObjectBuy += ObjectBuy;
-            client.OnLogout += ClientClosed;
+        }
 
-            client.SendMoneyBalance (UUID.Random(), true, new byte[0], m_maxBalance);
+        /// <summary>
+        /// Event Handler for when a root agent becomes a root agent
+        /// </summary>
+        /// <param name="avatar"></param>
+        private void MakeRootAgent(ScenePresence avatar)
+        {
+            IClientAPI client = avatar.ControllingClient;
+
+            if (m_balanceOnEntry)
+            {
+                client.SendMoneyBalance(UUID.Random(), true, new byte[0], m_maxBalance);
+
+                if (m_messageOnEntry != "")
+                    SendEntryMessage(client);
+            }
         }
 
         /// <summary>
@@ -774,44 +779,6 @@ namespace PayPal
             SceneObjectPart root = @group.RootPart;
             
             client.SendPayPrice (objectID, root.PayPrice);
-        }
-
-        /// <summary>
-        /// Event Handler for when the client logs out.
-        /// </summary>
-        /// <param name="AgentId"></param>
-        private void ClientLoggedOut(UUID AgentId, Scene scene)
-        {
-            
-        }
-
-        /// <summary>
-        /// Call this when the client disconnects.
-        /// </summary>
-        /// <param name="client"></param>
-        public void ClientClosed(IClientAPI client)
-        {
-            ClientClosed(client.AgentId, null);
-        }
-
-        /// <summary>
-        /// When the client closes the connection we remove their accounting info from memory to free up resources.
-        /// </summary>
-        /// <param name="AgentID"></param>
-        public void ClientClosed(UUID AgentID, Scene scene)
-        {
-            
-        }
-
-        /// <summary>
-        /// Event Handler for when an Avatar enters one of the parcels in the simulator.
-        /// </summary>
-        /// <param name="avatar"></param>
-        /// <param name="localLandID"></param>
-        /// <param name="regionID"></param>
-        private void AvatarEnteringParcel(ScenePresence avatar, int localLandID, UUID regionID)
-        {
-            
         }
 
         /// <summary>
@@ -1022,7 +989,7 @@ namespace PayPal
             msg.dialog = (byte)19;
             // Object msg
             msg.fromGroup = false;
-            msg.offline = (byte)1;
+            msg.offline = (byte)0;
             msg.ParentEstateID = (uint)0;
             msg.Position = Vector3.Zero;
             msg.RegionID = new Guid (UUID.Zero.ToString ());
@@ -1030,6 +997,26 @@ namespace PayPal
             msg.message = message;
             
             user.SendInstantMessage (msg);
+        }
+
+        private void SendEntryMessage(IClientAPI client)
+        {
+            GridInstantMessage msg = new GridInstantMessage();
+            msg.imSessionID = UUID.Zero.Guid;
+            msg.fromAgentID = UUID.Zero.Guid;
+            msg.toAgentID = client.AgentId.Guid;
+            msg.timestamp = (uint)Util.UnixTimeSinceEpoch();
+            msg.fromAgentName = "System";
+            msg.message = m_messageOnEntry;
+            msg.dialog = (byte)OpenMetaverse.InstantMessageDialog.ConsoleAndChatHistory;
+            msg.fromGroup = false;
+            msg.offline = (byte)0;
+            msg.ParentEstateID = 0;
+            msg.Position = Vector3.Zero;
+            msg.RegionID = UUID.Zero.Guid;
+            msg.binaryBucket = new byte[0];
+
+            client.SendInstantMessage(msg);
         }
 
         #endregion
@@ -1040,7 +1027,13 @@ namespace PayPal
                 m_scenes.Remove (scene);
             
             if (m_enabled)
+            {
+                scene.EventManager.OnNewClient -= OnNewClient;
+                scene.EventManager.OnMakeRootAgent -= MakeRootAgent;
                 scene.EventManager.OnMoneyTransfer -= OnMoneyTransfer;
+                scene.EventManager.OnValidateLandBuy -= ValidateLandBuy;
+                scene.EventManager.OnLandBuy -= processLandBuy;
+            }
         }
 
         public void RegionLoaded (Scene scene)
