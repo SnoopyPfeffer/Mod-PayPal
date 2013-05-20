@@ -784,20 +784,15 @@ namespace PayPal
         /// <summary>
         /// Event called Economy Data Request handler.
         /// </summary>
-        /// <param name="agentId"></param>
-        public void EconomyDataRequestHandler(UUID agentId)
+        /// <param name="user"></param>
+        public void EconomyDataRequestHandler(IClientAPI user)
         {
-            IClientAPI user = LocateClientObject(agentId);
+            Scene s = LocateSceneClientIn(user.AgentId);
 
-            if (user != null)
-            {
-                Scene s = LocateSceneClientIn(user.AgentId);
-
-                user.SendEconomyData(EnergyEfficiency, s.RegionInfo.ObjectCapacity, ObjectCount, PriceEnergyUnit, PriceGroupCreate,
-                                     PriceObjectClaim, PriceObjectRent, PriceObjectScaleFactor, PriceParcelClaim, PriceParcelClaimFactor,
-                                     PriceParcelRent, PricePublicObjectDecay, PricePublicObjectDelete, PriceRentLight, PriceUpload,
-                                     TeleportMinPrice, TeleportPriceExponent);
-            }
+            user.SendEconomyData(EnergyEfficiency, s.RegionInfo.ObjectCapacity, ObjectCount, PriceEnergyUnit, PriceGroupCreate,
+                                 PriceObjectClaim, PriceObjectRent, PriceObjectScaleFactor, PriceParcelClaim, PriceParcelClaimFactor,
+                                 PriceParcelRent, PricePublicObjectDecay, PricePublicObjectDelete, PriceRentLight, PriceUpload,
+                                 TeleportMinPrice, TeleportPriceExponent);
         }
 
         void OnMoneyBalanceRequest (IClientAPI client, UUID agentID, UUID SessionID, UUID TransactionID)
