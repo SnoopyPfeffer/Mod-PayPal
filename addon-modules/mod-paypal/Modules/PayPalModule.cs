@@ -629,7 +629,7 @@ namespace PayPal
 
             if (m_balanceOnEntry)
             {
-                client.SendMoneyBalance(UUID.Random(), true, new byte[0], m_maxBalance);
+                client.SendMoneyBalance(UUID.Random(), true, new byte[0], m_maxBalance, 0, UUID.Zero, false, UUID.Zero, false, 0, String.Empty);
 
                 if (m_messageOnEntry != "")
                     SendEntryMessage(client);
@@ -768,7 +768,7 @@ namespace PayPal
 
         public void requestPayPrice (IClientAPI client, UUID objectID)
         {
-            Scene scene = LocateSceneClientIn (client.AgentId);
+            Scene scene = (Scene)client.Scene;
             if (scene == null)
                 return;
             
@@ -787,7 +787,7 @@ namespace PayPal
         /// <param name="user"></param>
         public void EconomyDataRequestHandler(IClientAPI user)
         {
-            Scene s = LocateSceneClientIn(user.AgentId);
+            Scene s = (Scene)user.Scene;
 
             user.SendEconomyData(EnergyEfficiency, s.RegionInfo.ObjectCapacity, ObjectCount, PriceEnergyUnit, PriceGroupCreate,
                                  PriceObjectClaim, PriceObjectRent, PriceObjectScaleFactor, PriceParcelClaim, PriceParcelClaimFactor,
@@ -799,7 +799,7 @@ namespace PayPal
         {
             if (client.AgentId == agentID && client.SessionId == SessionID && (client == LocateClientObject(agentID)))
             {
-                client.SendMoneyBalance (TransactionID, true, new byte[0], m_maxBalance);
+                client.SendMoneyBalance (TransactionID, true, new byte[0], m_maxBalance, 0, UUID.Zero, false, UUID.Zero, false, 0, String.Empty);
             }
         }
 
@@ -1173,7 +1173,12 @@ namespace PayPal
             return true;
         }
 
-        public void ApplyCharge (UUID agentID, int amount, string text)
+        public void ApplyCharge(UUID agentID, int amount, MoneyTransactionType type, string extraData)
+        {
+            // N/A
+        }
+
+        public void ApplyCharge(UUID agentID, int amount, MoneyTransactionType type)
         {
             // N/A
         }
