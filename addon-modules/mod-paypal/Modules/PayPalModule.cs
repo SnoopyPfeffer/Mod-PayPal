@@ -33,6 +33,7 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Web;
+using System.Threading;
 using log4net;
 using Nini.Config;
 using OpenMetaverse;
@@ -82,6 +83,7 @@ namespace PayPal
         private bool m_allowGroups = false;
         private bool m_balanceOnEntry = true;
         private string m_messageOnEntry = "PayPal Money System:  OS$ 100 = US$ 1.00";
+        private int m_messageDelayAtLogin = 7000;  // 7 seconds
 
         /// <summary>
         /// Scenes by Region Handle
@@ -512,6 +514,7 @@ namespace PayPal
             m_allowGroups = config.GetBoolean ("AllowGroups", false);
             m_balanceOnEntry = config.GetBoolean ("BalanceOnEntry", true);
             m_messageOnEntry = config.GetString ("MessageOnEntry", m_messageOnEntry);
+            m_messageDelayAtLogin = config.GetInt("MessageDelayAtLogin", m_messageDelayAtLogin);
             
             IConfig startupConfig = m_config.Configs["Startup"];
 
@@ -617,6 +620,7 @@ namespace PayPal
             client.OnMoneyBalanceRequest += OnMoneyBalanceRequest;
             client.OnRequestPayPrice += requestPayPrice;
             client.OnObjectBuy += ObjectBuy;
+            client.OnRetrieveInstantMessages += RetrieveInstantMessages;
         }
 
         /// <summary>
@@ -633,6 +637,21 @@ namespace PayPal
 
                 if (m_messageOnEntry != "")
                     SendEntryMessage(client);
+            }
+        }
+
+        private void RetrieveInstantMessages(IClientAPI client)
+        {
+            // m_log.DebugFormat("[PayPal]: RetrieveInstantMessages {0}", client.AgentId);
+
+            // Show warning message
+            if (m_messageOnEntry != "")
+            {
+                Util.FireAndForget(delegate
+                {
+                    Thread.Sleep(m_messageDelayAtLogin);
+                    SendEntryMessage(client);
+                });
             }
         }
 
