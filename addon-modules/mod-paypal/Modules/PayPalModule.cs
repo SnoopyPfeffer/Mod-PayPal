@@ -39,6 +39,7 @@ using Nini.Config;
 using OpenMetaverse;
 using OpenSim.Framework;
 using OpenSim.Services.Interfaces;
+// using OpenSim.Framework.Communications;
 using OpenSim.Framework.Servers.HttpServer;
 using OpenSim.Region.Framework.Interfaces;
 using OpenSim.Region.Framework.Scenes;
@@ -784,6 +785,10 @@ namespace PayPal
                               baseUrl + "/pp/?txn=" + txn.TxID);
         }
 
+        public void MoveMoney(UUID fromAgentID, UUID toAgentID, int amount, string text)
+        {
+        }
+
         public void requestPayPrice (IClientAPI client, UUID objectID)
         {
             Scene scene = (Scene)client.Scene;
@@ -1163,8 +1168,9 @@ namespace PayPal
 
         #region Implementation of IMoneyModule
 
-        public bool ObjectGiveMoney (UUID objectID, UUID fromID, UUID toID, int amount)
+        public bool ObjectGiveMoney(UUID objectID, UUID fromID, UUID toID, int amount, UUID txn, out string result)
         {
+            result = "";
             return false;
             // Objects cant give PP Money. (in theory it's doable however, if the user is in the sim.)
         }
