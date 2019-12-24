@@ -379,7 +379,7 @@ namespace PayPal
             reply["content_type"] = "text/html";
             
             if (!m_active) {
-                m_log.Error ("[PayPal] Received IPN request, but module is disabled. Aborting.");
+                m_log.Error ("[PayPal] Recieved IPN request, but module is disabled. Aborting.");
                 reply["str_response_string"] = "IPN Not processed. Module is not enabled.";
                 return reply;
             }
@@ -786,6 +786,11 @@ namespace PayPal
 
         public void MoveMoney(UUID fromAgentID, UUID toAgentID, int amount, string text)
         {
+        }
+
+        public bool MoveMoney(UUID fromUser, UUID toUser, int amount, MoneyTransactionType type, string text)
+        {
+            return true;
         }
 
         public void requestPayPrice (IClientAPI client, UUID objectID)
